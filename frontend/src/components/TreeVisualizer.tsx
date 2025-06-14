@@ -72,7 +72,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
       .append('g')
       .attr('transform', `translate(${width / 2},${margin.top})`);
 
-    // Create tree layout - vertical orientation
+    // Create tree layout - vertical orientation with more spacing
     const treeLayout = d3
       .tree<TreeNode>()
       .size([width - margin.left - margin.right, height - margin.top - margin.bottom])
@@ -80,10 +80,14 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
         const aIsLeaf = !a.children || a.children.length === 0;
         const bIsLeaf = !b.children || b.children.length === 0;
         
+        // Much more spacing for leaf nodes to prevent crowding
         if (aIsLeaf && bIsLeaf) {
-          return 1.5;
+          return 3; // Increased from 1.5
         }
-        return a.parent === b.parent ? 1 : 1.2;
+        if (aIsLeaf || bIsLeaf) {
+          return 2.5; // Mixed leaf/non-leaf
+        }
+        return a.parent === b.parent ? 2 : 2.5; // Increased general spacing
       });
 
     // Create hierarchy

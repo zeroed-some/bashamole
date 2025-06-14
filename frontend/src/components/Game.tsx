@@ -41,6 +41,13 @@ const Game: React.FC = () => {
     }
   }, [commandHistory]);
 
+  // Auto-focus input after command execution
+  useEffect(() => {
+    if (!executing && inputRef.current && !terminalMinimized) {
+      inputRef.current.focus();
+    }
+  }, [executing, terminalMinimized]);
+
   // Start a new game
   const startNewGame = async () => {
     try {
@@ -133,7 +140,7 @@ const Game: React.FC = () => {
       }]);
     } finally {
       setExecuting(false);
-      inputRef.current?.focus();
+      // Focus will be restored by useEffect
     }
   };
 
@@ -224,59 +231,8 @@ const Game: React.FC = () => {
         />
       </div>
 
-      {/* Top Header Bar */}
-      <div className="absolute top-0 left-0 right-0 bg-gray-900/90 backdrop-blur-sm border-b border-gray-700 p-4 z-20">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold">🐭 Bashamole</h1>
-            <div className="text-sm text-gray-400">
-              Location: <span className="font-mono text-blue-400">{gameState.tree.player_location}</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            {gameState.tree.is_completed ? (
-              <div className="text-green-400 font-bold animate-pulse">
-                🎉 You found the mole!
-              </div>
-            ) : (
-              <>
-                <button
-                  onClick={getHints}
-                  className="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition"
-                >
-                  Get Hint 💡
-                </button>
-                <button
-                  onClick={startNewGame}
-                  className="px-3 py-1.5 bg-gray-700 text-white text-sm rounded hover:bg-gray-600 transition"
-                >
-                  New Game
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Hints Popup */}
-      {showHints && hints.length > 0 && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-yellow-900/95 backdrop-blur-sm border border-yellow-600 rounded-lg p-4 max-w-md z-30 shadow-2xl">
-          <button
-            onClick={() => setShowHints(false)}
-            className="absolute top-2 right-2 text-yellow-400 hover:text-yellow-300"
-          >
-            ✕
-          </button>
-          <h3 className="text-yellow-400 font-bold mb-2">💡 Hints:</h3>
-          {hints.map((hint, index) => (
-            <p key={index} className="text-yellow-200 text-sm">{hint}</p>
-          ))}
-        </div>
-      )}
-
-      {/* Floating Terminal */}
-      <div className={`absolute bottom-4 left-4 bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-2xl border border-gray-700 transition-all duration-300 z-30 ${
+      {/* Floating Terminal - Top Left */}
+      <div className={`absolute top-4 left-4 bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-2xl border border-gray-700 transition-all duration-300 z-30 ${
         terminalMinimized ? 'w-80' : 'w-[500px]'
       }`}>
         {/* Terminal Header */}
@@ -286,7 +242,7 @@ const Game: React.FC = () => {
             onClick={() => setTerminalMinimized(!terminalMinimized)}
             className="text-gray-400 hover:text-white transition"
           >
-            {terminalMinimized ? '▲' : '▼'}
+            {terminalMinimized ? '▼' : '▲'}
           </button>
         </div>
 
@@ -341,13 +297,58 @@ const Game: React.FC = () => {
         )}
       </div>
 
-      {/* Instructions - Bottom Right */}
-      <div className="absolute bottom-4 right-4 bg-gray-800/80 backdrop-blur-sm rounded-lg p-3 text-xs text-gray-400 max-w-xs z-20">
-        <div className="font-semibold text-gray-300 mb-1">Controls:</div>
-        <div>• Click nodes to navigate</div>
-        <div>• Scroll to zoom, drag to pan</div>
-        <div>• Type commands in terminal</div>
-        <div className="mt-1 text-gray-500">Find and eliminate the mole!</div>
+      {/* Hints Popup */}
+      {showHints && hints.length > 0 && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-yellow-900/95 backdrop-blur-sm border border-yellow-600 rounded-lg p-4 max-w-md z-30 shadow-2xl">
+          <button
+            onClick={() => setShowHints(false)}
+            className="absolute top-2 right-2 text-yellow-400 hover:text-yellow-300"
+          >
+            ✕
+          </button>
+          <h3 className="text-yellow-400 font-bold mb-2">💡 Hints:</h3>
+          {hints.map((hint, index) => (
+            <p key={index} className="text-yellow-200 text-sm">{hint}</p>
+          ))}
+        </div>
+      )}
+
+      {/* Bottom Game Bar */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gray-900/90 backdrop-blur-sm border-t border-gray-700 p-4 z-20">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold">🐭 Bashamole</h1>
+            <div className="text-sm text-gray-400">
+              Location: <span className="font-mono text-blue-400">{gameState.tree.player_location}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {gameState.tree.is_completed ? (
+              <div className="text-green-400 font-bold animate-pulse">
+                🎉 You found the mole!
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={getHints}
+                  className="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition"
+                >
+                  Get Hint 💡
+                </button>
+                <div className="text-xs text-gray-500">
+                  Click nodes or use terminal
+                </div>
+              </>
+            )}
+            <button
+              onClick={startNewGame}
+              className="px-3 py-1.5 bg-gray-700 text-white text-sm rounded hover:bg-gray-600 transition"
+            >
+              New Game
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
