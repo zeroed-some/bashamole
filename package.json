@@ -1,0 +1,21 @@
+{
+  "name": "bashamole",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:backend": "cd backend && python manage.py runserver",
+    "dev:frontend": "cd frontend && npm run dev",
+    "install:backend": "cd backend && pip install -r requirements.txt",
+    "install:frontend": "cd frontend && npm install"
+  },
+  "dependencies": {
+    "@types/d3": "^7.4.3",
+    "axios": "^1.10.0",
+    "d3": "^7.9.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.5",
+    "tailwindcss": "^4.1.10"
+  }
+}
