@@ -29,6 +29,7 @@ const Game: React.FC = () => {
   const [executing, setExecuting] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [hints, setHints] = useState<string[]>([]);
+  const [terminalMinimized, setTerminalMinimized] = useState(false);
   
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -58,6 +59,7 @@ const Game: React.FC = () => {
       }]);
       setHints([]);
       setShowHints(false);
+      setTerminalMinimized(false);
     } catch (error) {
       setGameState({
         ...gameState,
@@ -117,7 +119,6 @@ const Game: React.FC = () => {
           tree: prev.tree ? {
             ...prev.tree,
             is_completed: true,
-            // Update tree_data to show mole
             tree_data: updateTreeDataToShowMole(prev.tree!.tree_data, prev.tree!.player_location),
           } : null,
         }));
@@ -213,77 +214,91 @@ const Game: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">🐭 Bashamole</h1>
-              <p className="text-gray-400">
-                Current Location: <span className="font-mono text-blue-400">{gameState.tree.player_location}</span>
-              </p>
+    <div className="relative min-h-screen bg-gray-900 text-white overflow-hidden">
+      {/* Tree Canvas - Full Screen Background */}
+      <div className="absolute inset-0 bg-gray-900">
+        <TreeVisualizer
+          treeData={gameState.tree.tree_data}
+          playerLocation={gameState.tree.player_location}
+          onNodeClick={handleNodeClick}
+        />
+      </div>
+
+      {/* Top Header Bar */}
+      <div className="absolute top-0 left-0 right-0 bg-gray-900/90 backdrop-blur-sm border-b border-gray-700 p-4 z-20">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold">🐭 Bashamole</h1>
+            <div className="text-sm text-gray-400">
+              Location: <span className="font-mono text-blue-400">{gameState.tree.player_location}</span>
             </div>
-            <div className="text-right">
-              {gameState.tree.is_completed ? (
-                <div className="text-green-400 font-bold text-xl animate-pulse">
-                  🎉 You found the mole!
-                </div>
-              ) : (
-                <div className="space-x-2">
-                  <button
-                    onClick={getHints}
-                    className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition"
-                  >
-                    Get Hint 💡
-                  </button>
-                  <button
-                    onClick={startNewGame}
-                    className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition"
-                  >
-                    New Game
-                  </button>
-                </div>
-              )}
-            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {gameState.tree.is_completed ? (
+              <div className="text-green-400 font-bold animate-pulse">
+                🎉 You found the mole!
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={getHints}
+                  className="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition"
+                >
+                  Get Hint 💡
+                </button>
+                <button
+                  onClick={startNewGame}
+                  className="px-3 py-1.5 bg-gray-700 text-white text-sm rounded hover:bg-gray-600 transition"
+                >
+                  New Game
+                </button>
+              </>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Hints */}
-        {showHints && hints.length > 0 && (
-          <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-4 mb-4">
-            <h3 className="text-yellow-400 font-bold mb-2">💡 Hints:</h3>
-            {hints.map((hint, index) => (
-              <p key={index} className="text-yellow-200">{hint}</p>
-            ))}
-          </div>
-        )}
+      {/* Hints Popup */}
+      {showHints && hints.length > 0 && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-yellow-900/95 backdrop-blur-sm border border-yellow-600 rounded-lg p-4 max-w-md z-30 shadow-2xl">
+          <button
+            onClick={() => setShowHints(false)}
+            className="absolute top-2 right-2 text-yellow-400 hover:text-yellow-300"
+          >
+            ✕
+          </button>
+          <h3 className="text-yellow-400 font-bold mb-2">💡 Hints:</h3>
+          {hints.map((hint, index) => (
+            <p key={index} className="text-yellow-200 text-sm">{hint}</p>
+          ))}
+        </div>
+      )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {/* Tree Visualizer */}
-          <div className="bg-gray-800 rounded-lg shadow-xl p-4">
-            <h2 className="text-xl font-semibold mb-3 text-gray-300">Filesystem Tree</h2>
-            <div className="h-[600px] bg-gray-900 rounded-lg p-2">
-              <TreeVisualizer
-                treeData={gameState.tree.tree_data}
-                playerLocation={gameState.tree.player_location}
-                onNodeClick={handleNodeClick}
-              />
-            </div>
-            <p className="text-sm text-gray-500 mt-2">
-              Click nodes to navigate • Scroll to zoom • Drag to pan
-            </p>
-          </div>
+      {/* Floating Terminal */}
+      <div className={`absolute bottom-4 left-4 bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-2xl border border-gray-700 transition-all duration-300 z-30 ${
+        terminalMinimized ? 'w-80' : 'w-[500px]'
+      }`}>
+        {/* Terminal Header */}
+        <div className="flex items-center justify-between bg-gray-700 px-4 py-2 rounded-t-lg">
+          <h3 className="text-sm font-semibold text-gray-300">Terminal</h3>
+          <button
+            onClick={() => setTerminalMinimized(!terminalMinimized)}
+            className="text-gray-400 hover:text-white transition"
+          >
+            {terminalMinimized ? '▲' : '▼'}
+          </button>
+        </div>
 
-          {/* Terminal */}
-          <div className="bg-gray-800 rounded-lg shadow-xl p-4">
-            <h2 className="text-xl font-semibold mb-3 text-gray-300">Terminal</h2>
+        {/* Terminal Content */}
+        {!terminalMinimized && (
+          <>
             <div 
               ref={terminalRef}
-              className="bg-black text-green-400 p-4 rounded font-mono text-sm h-[550px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700"
+              className="bg-black text-green-400 p-3 font-mono text-xs h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700"
             >
               {commandHistory.map((entry, index) => (
-                <div key={index} className="mb-3">
+                <div key={index} className="mb-2">
                   <div className="text-gray-400">
                     {entry.command.startsWith('🎮') ? (
                       <span className="text-yellow-400">{entry.command}</span>
@@ -300,34 +315,39 @@ const Game: React.FC = () => {
               ))}
             </div>
             
-            <form onSubmit={handleSubmit} className="mt-4">
-              <div className="flex bg-gray-900 rounded overflow-hidden">
-                <span className="bg-gray-800 px-3 py-2 text-green-400 font-mono">$</span>
+            <form onSubmit={handleSubmit} className="border-t border-gray-700">
+              <div className="flex bg-gray-900">
+                <span className="bg-gray-800 px-3 py-2 text-green-400 font-mono text-sm">$</span>
                 <input
                   ref={inputRef}
                   type="text"
                   value={command}
                   onChange={(e) => setCommand(e.target.value)}
                   disabled={executing || gameState.tree.is_completed}
-                  className="flex-1 px-3 py-2 bg-gray-900 text-green-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono placeholder-gray-600"
-                  placeholder="Enter command (cd, ls, pwd, help, killall moles)"
+                  className="flex-1 px-3 py-2 bg-gray-900 text-green-400 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono placeholder-gray-600"
+                  placeholder="cd, ls, pwd, help, killall moles"
                   autoFocus
                 />
                 <button
                   type="submit"
                   disabled={executing || gameState.tree.is_completed}
-                  className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 transition"
+                  className="px-4 py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 transition"
                 >
                   {executing ? '...' : 'Run'}
                 </button>
               </div>
             </form>
+          </>
+        )}
+      </div>
 
-            <div className="mt-2 text-xs text-gray-600">
-              Pro tip: Type "help" to see all available commands
-            </div>
-          </div>
-        </div>
+      {/* Instructions - Bottom Right */}
+      <div className="absolute bottom-4 right-4 bg-gray-800/80 backdrop-blur-sm rounded-lg p-3 text-xs text-gray-400 max-w-xs z-20">
+        <div className="font-semibold text-gray-300 mb-1">Controls:</div>
+        <div>• Click nodes to navigate</div>
+        <div>• Scroll to zoom, drag to pan</div>
+        <div>• Type commands in terminal</div>
+        <div className="mt-1 text-gray-500">Find and eliminate the mole!</div>
       </div>
     </div>
   );
