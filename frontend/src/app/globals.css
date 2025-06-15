@@ -25,6 +25,11 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Custom terminal font class */
+.font-terminal {
+  font-family: var(--font-terminal, 'Space Mono', 'Courier New', monospace);
+}
+
 /* Custom scrollbar for terminal */
 .scrollbar-thin {
   scrollbar-width: thin;

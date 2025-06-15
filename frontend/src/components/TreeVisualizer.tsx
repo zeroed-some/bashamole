@@ -297,6 +297,43 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     feMerge.append('feMergeNode').attr('in', 'coloredBlur');
     feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
 
+    // Add a subtle pulse animation for adjacent nodes
+    const pulseAnimation = defs.append('style')
+      .text(`
+        @keyframes subtlePulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
+        }
+        .adjacent-node {
+          animation: subtlePulse 2s ease-in-out infinite;
+        }
+      `);
+
+    // Helper function to check if a node is adjacent to the current location
+    const isAdjacentNode = (nodePath: string, currentPath: string): boolean => {
+      // Check if it's the parent directory
+      if (currentPath !== '/') {
+        const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/')) || '/';
+        if (nodePath === parentPath) return true;
+      }
+      
+      // Check if it's a direct child
+      if (currentPath === '/') {
+        // For root, children are paths with exactly one segment
+        const segments = nodePath.split('/').filter(s => s);
+        if (segments.length === 1) return true;
+      } else {
+        // For other directories, check if it's a direct child
+        if (nodePath.startsWith(currentPath + '/')) {
+          const relativePath = nodePath.substring(currentPath.length + 1);
+          // Make sure there are no additional slashes (not a grandchild)
+          if (!relativePath.includes('/')) return true;
+        }
+      }
+      
+      return false;
+    };
+
     // Add circles for nodes
     node
       .append('circle')
@@ -317,15 +354,34 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
         return NODE_CONFIG.colors.regular.stroke;
       })
       .style('stroke-width', NODE_CONFIG.strokeWidth.base)
-      .style('cursor', 'pointer')
+      .style('cursor', d => {
+        // Only show pointer cursor for adjacent nodes
+        if (d.data.path === playerLocation) return 'default';
+        return isAdjacentNode(d.data.path, playerLocation) ? 'pointer' : 'not-allowed';
+      })
       .style('filter', d => d.data.path === playerLocation ? NODE_CONFIG.glowFilter : 'none')
+      .style('opacity', d => {
+        // Slightly fade non-adjacent nodes
+        if (d.data.path === playerLocation) return 1;
+        return isAdjacentNode(d.data.path, playerLocation) ? 1 : 0.6;
+      })
       .style('transition', 'all 0.3s ease')
+      .attr('class', d => {
+        // Add class for adjacent nodes to enable pulse animation
+        if (d.data.path !== playerLocation && isAdjacentNode(d.data.path, playerLocation)) {
+          return 'adjacent-node';
+        }
+        return '';
+      })
       .on('mouseover', function(event, d) {
-        d3.select(this)
-          .transition()
-          .duration(ANIMATION_CONFIG.nodeHover.duration)
-          .attr('r', d.data.path === '/' ? NODE_CONFIG.sizes.root.hover : NODE_CONFIG.sizes.regular.hover)
-          .style('stroke-width', NODE_CONFIG.strokeWidth.hover);
+        // Only apply hover effect to adjacent nodes
+        if (d.data.path !== playerLocation && isAdjacentNode(d.data.path, playerLocation)) {
+          d3.select(this)
+            .transition()
+            .duration(ANIMATION_CONFIG.nodeHover.duration)
+            .attr('r', d.data.path === '/' ? NODE_CONFIG.sizes.root.hover : NODE_CONFIG.sizes.regular.hover)
+            .style('stroke-width', NODE_CONFIG.strokeWidth.hover);
+        }
       })
       .on('mouseout', function(event, d) {
         d3.select(this)
@@ -337,7 +393,8 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
           .style('stroke-width', NODE_CONFIG.strokeWidth.base);
       })
       .on('click', (event, d) => {
-        if (onNodeClick) {
+        // Only allow clicks on adjacent nodes
+        if (onNodeClick && d.data.path !== playerLocation && isAdjacentNode(d.data.path, playerLocation)) {
           onNodeClick(d.data.path);
         }
       });
@@ -345,7 +402,14 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     // Add tooltips
     node
       .append('title')
-      .text(d => `${d.data.path}\n${d.data.description}\n${d.data.has_mole ? '🐭 Mole is here!' : ''}`);
+      .text(d => {
+        const baseText = `${d.data.path}\n${d.data.description}`;
+        const moleText = d.data.has_mole ? '\n🐭 Mole is here!' : '';
+        const clickableText = (d.data.path !== playerLocation && isAdjacentNode(d.data.path, playerLocation)) 
+          ? '\n(Click to navigate here)' 
+          : '';
+        return baseText + moleText + clickableText;
+      });
 
     // Add labels
     node

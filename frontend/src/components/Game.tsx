@@ -316,12 +316,12 @@ const Game: React.FC = () => {
         {!terminalMinimized && (
           <div 
             ref={terminalRef}
-            className={`${terminalColors.content} p-4 font-mono text-base h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700`}
+            className={`${terminalColors.content} p-4 font-terminal text-base h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700`}
             onClick={() => inputRef.current?.focus()}
           >
             {commandHistory.map((entry, index) => (
               <div key={index} className="mb-1">
-                <div className="flex items-start font-mono">
+                <div className="flex items-start font-terminal">
                   <span className="text-green-400">groundskeeper@molehill</span>
                   <span className="text-gray-400 mx-1">::</span>
                   <span className="text-blue-400">{entry.command.startsWith('Hunt started!') ? '~' : gameState.tree?.player_location || '~'}</span>
@@ -331,7 +331,7 @@ const Game: React.FC = () => {
                   </span>
                 </div>
                 {entry.output && (
-                  <div className={`${entry.success ? 'text-gray-300' : 'text-red-400'} ml-0 mt-1 font-mono whitespace-pre-wrap`}>
+                  <div className={`${entry.success ? 'text-gray-300' : 'text-red-400'} ml-0 mt-1 font-terminal whitespace-pre-wrap`}>
                     {entry.output.split('\n').map((line, i) => (
                       <div key={i}>{line}</div>
                     ))}
@@ -341,16 +341,16 @@ const Game: React.FC = () => {
             ))}
             
             {/* Current input line */}
-            <div className="flex items-start font-mono">
+            <div className="flex items-start font-terminal">
               <span className="text-green-400">groundskeeper@molehill</span>
               <span className="text-gray-400 mx-1">::</span>
               <span className="text-blue-400">{gameState.tree?.player_location || '~'}</span>
               <span className="text-gray-400 ml-1">$</span>
               <div className="flex-1 ml-2">
                 <div className="relative inline-block">
-                  <span className="text-gray-300 font-mono">{command}</span>
+                  <span className="text-gray-300 font-terminal">{command}</span>
                   <span 
-                    className="text-gray-300 font-mono"
+                    className="text-gray-300 font-terminal"
                     style={{ 
                       animation: 'blink 1s step-end infinite'
                     }}
@@ -369,7 +369,7 @@ const Game: React.FC = () => {
                       }
                     }}
                     disabled={executing || gameState.tree?.is_completed}
-                    className="absolute inset-0 w-full bg-transparent text-transparent outline-none caret-transparent font-mono"
+                    className="absolute inset-0 w-full bg-transparent text-transparent outline-none caret-transparent font-terminal"
                     placeholder=""
                     autoFocus
                     spellCheck={false}
@@ -404,16 +404,16 @@ const Game: React.FC = () => {
       <div className={`absolute bottom-0 left-0 right-0 ${isDarkMode ? 'bg-gray-900/90' : 'bg-white/90'} backdrop-blur-sm border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-300'} p-4 z-20`}>
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Bashamole</h1>
-            <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Location: <span className="font-mono text-blue-600 dark:text-blue-400">{gameState.tree.player_location}</span>
-            </div>
+            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}><span className='font-terminal bg-gray-200 dark:bg-gray-700 text-red-900 dark:text-red-400 px-1 py-0 rounded'>bash</span>amole</h1>
+            {/* <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Location: <span className="font-terminal text-blue-600 dark:text-blue-400">{gameState.tree.player_location}</span>
+            </div> */}
           </div>
           
           <div className="flex items-center gap-3">
             {gameState.tree.is_completed ? (
               <div className="text-green-600 dark:text-green-400 font-bold animate-pulse">
-                You found the mole!
+                You found a mole!
               </div>
             ) : (
               <>
