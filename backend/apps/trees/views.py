@@ -94,6 +94,11 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                     "command": "killall moles",
                     "description": "Eliminate moles when in the same directory",
                     "examples": ["killall moles"]
+                },
+                {
+                    "command": "score",
+                    "description": "Show current score and moles killed",
+                    "examples": ["score"]
                 }
             ],
             "special_paths": [
@@ -203,12 +208,19 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Track commands for tree
+        tree.total_commands += 1
+        tree.save()
+        
         # Get session if provided
         session = None
+        commands_before_mole = tree.total_commands  # Track for scoring
+        
         if session_id:
             try:
                 session = GameSession.objects.get(id=session_id, tree=tree)
                 session.add_command(command)
+                commands_before_mole = session.commands_used
             except GameSession.DoesNotExist:
                 pass
         
@@ -220,7 +232,10 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
             'command': command,
             'success': False,
             'output': '',
-            'current_path': tree.player_location
+            'current_path': tree.player_location,
+            'mole_spawned': False,
+            'mole_direction': None,
+            'score': 0
         }
         
         if cmd == 'cd':
@@ -425,21 +440,57 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
         
         elif cmd == 'killall' and len(parts) > 1 and parts[1] == 'moles':
             if tree.check_win_condition():
-                tree.is_completed = True
-                tree.completed_at = timezone.now()
+                # Track old mole location for stats
+                old_mole_location = tree.mole_location
+                
+                # Update mole kill count
+                tree.moles_killed += 1
                 tree.save()
                 
+                # Record stats for session
                 if session:
-                    session.completed_at = timezone.now()
-                    session.time_taken = session.completed_at - session.started_at
-                    session.save()
+                    # Calculate commands used for this mole
+                    commands_for_mole = session.commands_used - commands_before_mole + 1  # +1 for killall
+                    
+                    # Calculate time (simplified for now - would need to track per-mole start time)
+                    time_for_mole = timezone.now() - session.started_at
+                    
+                    # Calculate distance traveled (simplified - just the path distance)
+                    distance = tree.calculate_path_distance(tree.home_directory, old_mole_location)
+                    
+                    session.record_mole_kill(
+                        old_mole_location,
+                        commands_for_mole,
+                        time_for_mole,
+                        distance
+                    )
+                    response_data['score'] = session.calculate_score()
                 
-                response_data['output'] = "🎉 Congratulations! You found and eliminated the mole!"
-                response_data['success'] = True
-                response_data['game_won'] = True
+                # Spawn new mole
+                if tree.spawn_new_mole():
+                    mole_direction = tree.get_mole_direction()
+                    
+                    response_data['output'] = f"🎉 You eliminated the mole! (Total moles killed: {tree.moles_killed})\n🐭 A new mole has appeared somewhere in the filesystem!"
+                    response_data['success'] = True
+                    response_data['mole_spawned'] = True
+                    response_data['mole_direction'] = mole_direction
+                    response_data['moles_killed'] = tree.moles_killed
+                    response_data['new_mole_location'] = tree.mole_location  # Add this!
+                else:
+                    response_data['output'] = "🎉 You eliminated the mole! Unable to spawn new mole."
+                    response_data['success'] = True
             else:
                 response_data['output'] = "No moles found in this directory."
                 response_data['success'] = True
+        
+        elif cmd == 'score':
+            # New command to check current score
+            if session:
+                response_data['output'] = f"Score: {session.calculate_score()} | Moles killed: {session.moles_killed}"
+                response_data['score'] = session.calculate_score()
+            else:
+                response_data['output'] = "No active session to score."
+            response_data['success'] = True
         
         elif cmd == 'help':
             response_data['output'] = """Available commands:
@@ -453,6 +504,7 @@ pwd               - Print working directory
 echo <text>       - Display text (supports $HOME, $PWD, $OLDPWD)
 tree [-L depth]   - Display directory tree (use -L to limit depth)
 killall moles     - Eliminate moles (when in the same directory)
+score             - Show current score and moles killed
 help              - Show this help message
 
 Special paths:

@@ -1,9 +1,8 @@
-'use client';
+"use client";
 
-// src/components/Game.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import TreeVisualizer from './TreeVisualizer';
-import { gameApi, FileSystemTree, FHSDirectory, CommandReferenceResponse } from '@/lib/api';
+import { gameApi, FileSystemTree, FHSDirectory, CommandReferenceResponse, MoleDirection } from '@/lib/api';
 
 interface CommandHistoryEntry {
   command: string;
@@ -37,6 +36,9 @@ const Game: React.FC = () => {
   const [hasPlayedIntro, setHasPlayedIntro] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [moleKilled, setMoleKilled] = useState(false);
+  const [moleDirection, setMoleDirection] = useState<MoleDirection | null>(null);
+  const [score, setScore] = useState(0);
+  const [molesKilled, setMolesKilled] = useState(0);
   
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +81,11 @@ const Game: React.FC = () => {
         loading: false,
         error: null,
       });
+      
+      // Reset game state
+      setScore(0);
+      setMolesKilled(0);
+      setMoleDirection(null);
       
       // Create a more dynamic starting message based on random location
       const startLocation = response.tree.player_location;
@@ -183,9 +190,57 @@ const Game: React.FC = () => {
         }));
       }
 
-      // Check if game won
-      if (response.game_won) {
-        // First, show the mole
+      // Check if a new mole was spawned
+      if (response.mole_spawned) {
+        // First, show the killed mole briefly
+        setGameState(prev => ({
+          ...prev,
+          tree: prev.tree ? {
+            ...prev.tree,
+            tree_data: updateTreeDataToShowMole(prev.tree!.tree_data, prev.tree!.player_location),
+          } : null,
+        }));
+        
+        // Trigger falling animation
+        setMoleKilled(true);
+        
+        // After animation, update tree with new mole location
+        setTimeout(() => {
+          setMoleKilled(false);
+          
+          // Update tree to show new mole location
+          if (response.new_mole_location && gameState.tree) {
+            const treeWithNewMole = updateTreeDataToShowMole(
+              removeMoleFromTree(gameState.tree.tree_data),
+              response.new_mole_location
+            );
+            
+            setGameState(prev => ({
+              ...prev,
+              tree: prev.tree ? {
+                ...prev.tree,
+                tree_data: treeWithNewMole,
+              } : null,
+            }));
+          }
+          
+          // Set new mole direction
+          if (response.mole_direction) {
+            setMoleDirection(response.mole_direction);
+            // Hide direction indicator after 5 seconds
+            setTimeout(() => {
+              setMoleDirection(null);
+            }, 5000);
+          }
+        }, 1500); // Wait for falling animation
+        
+        // Update score and moles killed
+        if (response.score !== undefined) setScore(response.score);
+        if (response.moles_killed !== undefined) setMolesKilled(response.moles_killed);
+      }
+
+      // Legacy: Check if game won (for old backend compatibility)
+      if (response.game_won && !response.mole_spawned) {
         setGameState(prev => ({
           ...prev,
           tree: prev.tree ? {
@@ -195,7 +250,6 @@ const Game: React.FC = () => {
           } : null,
         }));
         
-        // Then trigger the falling animation after a short delay
         setTimeout(() => {
           setMoleKilled(true);
         }, 200);
@@ -210,11 +264,10 @@ const Game: React.FC = () => {
       }]);
     } finally {
       setExecuting(false);
-      // Focus will be restored by useEffect
     }
   };
 
-  // Update tree data to show mole when game is won
+  // Update tree data to show mole when found
   const updateTreeDataToShowMole = (treeData: any, molePath: string): any => {
     if (treeData.path === molePath) {
       return { ...treeData, has_mole: true };
@@ -230,6 +283,15 @@ const Game: React.FC = () => {
     return treeData;
   };
 
+  // Remove mole from tree data
+  const removeMoleFromTree = (treeData: any): any => {
+    return {
+      ...treeData,
+      has_mole: false,
+      children: treeData.children ? treeData.children.map((child: any) => removeMoleFromTree(child)) : []
+    };
+  };
+
   // Handle node click in visualizer
   const handleNodeClick = (path: string) => {
     executeCommand(`cd ${path}`);
@@ -243,13 +305,32 @@ const Game: React.FC = () => {
   // Mark intro as played after first render
   useEffect(() => {
     if (gameState.tree && !hasPlayedIntro) {
-      // Set timeout to mark intro as played after animation completes
       const timer = setTimeout(() => {
         setHasPlayedIntro(true);
-      }, 6500); // Total intro duration
+      }, 10000); // Add a buffer to ensure animation completes (9.3s + buffer)
       return () => clearTimeout(timer);
     }
   }, [gameState.tree, hasPlayedIntro]);
+
+  // Get position for mole direction indicator
+  const getMoleIndicatorPosition = (direction: string) => {
+    const positions: Record<string, string> = {
+      'up': 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-full -mt-8',
+      'down': 'bottom-20 left-1/2 -translate-x-1/2',
+      'left': 'top-1/2 left-8 -translate-y-1/2',
+      'right': 'top-1/2 right-8 -translate-y-1/2',
+      'up-left': 'top-20 left-8',
+      'up-right': 'top-20 right-8',
+      'down-left': 'bottom-20 left-8',
+      'down-right': 'bottom-20 right-8',
+    };
+    return positions[direction] || positions['up'];
+  };
+
+  // Get rotation for arrow based on angle
+  const getArrowRotation = (angle: number) => {
+    return `rotate(${angle}deg)`;
+  };
 
   // Terminal color scheme based on dark/light mode
   const terminalColors = isDarkMode ? {
@@ -327,6 +408,40 @@ const Game: React.FC = () => {
         />
       </div>
 
+      {/* Mole Direction Indicator */}
+      {moleDirection && (
+        <div 
+          className={`absolute ${getMoleIndicatorPosition(moleDirection.direction)} z-40 animate-pulse`}
+          style={{
+            animation: 'pulse 2s ease-in-out infinite, fadeIn 0.5s ease-out'
+          }}
+        >
+          <div className="bg-red-600/90 backdrop-blur-sm border-2 border-red-400 rounded-lg p-3 shadow-2xl flex items-center gap-2">
+            <img 
+              src="/mole.svg" 
+              alt="Mole" 
+              className="w-8 h-8"
+            />
+            <div 
+              className="text-white text-2xl"
+              style={{ transform: getArrowRotation(moleDirection.angle) }}
+            >
+              →
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Score Display - Top Right */}
+      {molesKilled > 0 && (
+        <div className="absolute top-4 right-4 bg-black/80 backdrop-blur-sm border border-green-500 rounded-lg p-3 shadow-2xl z-30">
+          <div className="text-green-400 font-terminal text-sm">
+            <div>Score: {score}</div>
+            <div>Moles: {molesKilled}</div>
+          </div>
+        </div>
+      )}
+
       {/* Floating Terminal - Top Left */}
       <div className={`absolute top-4 left-4 ${terminalColors.frame} rounded-lg shadow-2xl border transition-all duration-300 z-30 ${
         terminalMinimized ? 'w-80' : 'w-[700px]'
@@ -342,17 +457,13 @@ const Game: React.FC = () => {
               >
                 <span className="text-[8px] font-bold text-gray-900 absolute">×</span>
               </button>
-              {gameState.tree && !gameState.tree.is_completed ? (
-                <button
-                  onClick={getHints}
-                  className="w-3.5 h-3.5 bg-yellow-500 hover:bg-yellow-400 rounded-full flex items-center justify-center transition-colors relative"
-                  title="Get Hint"
-                >
-                  <span className="text-[9px] font-bold text-gray-900 absolute">?</span>
-                </button>
-              ) : (
-                <div className="w-3.5 h-3.5 bg-yellow-500 rounded-full"></div>
-              )}
+              <button
+                onClick={getHints}
+                className="w-3.5 h-3.5 bg-yellow-500 hover:bg-yellow-400 rounded-full flex items-center justify-center transition-colors relative"
+                title="Get Hint"
+              >
+                <span className="text-[9px] font-bold text-gray-900 absolute">?</span>
+              </button>
               <button
                 onClick={getFHSReference}
                 className="w-3.5 h-3.5 bg-green-500 hover:bg-green-400 rounded-full flex items-center justify-center transition-colors relative"
@@ -427,7 +538,7 @@ const Game: React.FC = () => {
                         executeCommand(command);
                       }
                     }}
-                    disabled={executing || gameState.tree?.is_completed}
+                    disabled={executing}
                     className="absolute inset-0 w-full bg-transparent text-transparent outline-none caret-transparent font-terminal"
                     placeholder=""
                     autoFocus
@@ -443,7 +554,7 @@ const Game: React.FC = () => {
         )}
       </div>
 
-      {/* Hints Popup - Now positioned relative to terminal */}
+      {/* Hints Popup */}
       {showHints && hints.length > 0 && (
         <div className="absolute top-16 left-4 bg-yellow-900/95 backdrop-blur-sm border border-yellow-600 rounded-lg p-4 max-w-md z-40 shadow-2xl">
           <button
@@ -600,7 +711,7 @@ const Game: React.FC = () => {
         </div>
       )}
 
-      {/* Bottom Game Bar - Updated with blue shade */}
+      {/* Bottom Game Bar */}
       <div className={`absolute bottom-0 left-0 right-0 ${isDarkMode ? 'bg-slate-800/90' : 'bg-blue-50/90'} backdrop-blur-sm border-t ${isDarkMode ? 'border-slate-700' : 'border-blue-200'} p-3 z-20`}>
         <div className="max-w-7xl mx-auto flex justify-between items-center px-4">
           <div className="flex items-center gap-4">
@@ -608,15 +719,9 @@ const Game: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-3">
-            {gameState.tree.is_completed ? (
-              <div className="text-green-600 dark:text-green-400 font-bold animate-pulse">
-                You found a mole!
-              </div>
-            ) : (
-              <div className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-blue-700'}`}>
-                click adjacent nodes or use the terminal
-              </div>
-            )}
+            <div className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-blue-700'}`}>
+              click adjacent nodes or use the terminal
+            </div>
             <button
               onClick={startNewGame}
               className={`px-3 py-1.5 ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-blue-200 hover:bg-blue-300'} ${isDarkMode ? 'text-white' : 'text-blue-900'} text-sm rounded transition`}
@@ -626,6 +731,18 @@ const Game: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Custom styles for animations */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.8); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 0.9; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.05); }
+        }
+      `}</style>
     </div>
   );
 };

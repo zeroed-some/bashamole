@@ -4,6 +4,7 @@ from django.utils import timezone
 import json
 import random
 import string
+import math
 
 class FileSystemTree(models.Model):
     """A complete filesystem tree for a game session"""
@@ -21,6 +22,11 @@ class FileSystemTree(models.Model):
     previous_location = models.CharField(max_length=500, default="")  # For cd -
     directory_stack = models.JSONField(default=list)  # For pushd/popd
     home_directory = models.CharField(max_length=500, default="/home")  # Player's home
+    
+    # Game statistics
+    moles_killed = models.IntegerField(default=0)
+    total_commands = models.IntegerField(default=0)
+    total_directories_visited = models.IntegerField(default=0)
     
     # Cached tree structure
     tree_data = models.JSONField(null=True, blank=True)
@@ -202,6 +208,112 @@ class FileSystemTree(models.Model):
             mole_dir = random.choice(candidates)
             self.mole_location = mole_dir.path
     
+    def spawn_new_mole(self):
+        """Spawn a new mole after the current one is killed"""
+        # Get all possible spawn locations (any directory)
+        all_directories = DirectoryNode.objects.filter(tree=self).exclude(path="/")
+        
+        if all_directories.exists():
+            # Randomly select a new location
+            new_mole_dir = random.choice(all_directories)
+            self.mole_location = new_mole_dir.path
+            
+            # Update the cached tree data
+            self.cache_tree()
+            self.save()
+            
+            return True
+        return False
+    
+    def get_mole_direction(self):
+        """Get the relative direction from player to mole in the tree structure"""
+        if not self.mole_location or not self.player_location:
+            return None
+        
+        # Build paths to compare
+        player_parts = self.player_location.split('/')
+        mole_parts = self.mole_location.split('/')
+        
+        # Remove empty strings from split
+        player_parts = [p for p in player_parts if p]
+        mole_parts = [p for p in mole_parts if p]
+        
+        # If player is at root, special handling
+        if not player_parts:
+            player_parts = ['']
+        
+        # Find common ancestor
+        common_depth = 0
+        for i in range(min(len(player_parts), len(mole_parts))):
+            if player_parts[i] == mole_parts[i]:
+                common_depth += 1
+            else:
+                break
+        
+        # Determine relative position
+        player_depth = len(player_parts)
+        mole_depth = len(mole_parts)
+        
+        # Calculate tree-based direction
+        if self.mole_location == self.player_location:
+            return {"direction": "here", "angle": 0}
+        
+        # Mole is in a parent directory (need to go up)
+        if common_depth == mole_depth and mole_depth < player_depth:
+            return {"direction": "up", "angle": 270}  # Up in tree
+        
+        # Mole is in a child directory (need to go down) 
+        if common_depth == player_depth and mole_depth > player_depth:
+            # It's directly below us
+            return {"direction": "down", "angle": 90}  # Down in tree
+        
+        # Mole is in a sibling or cousin branch
+        if common_depth < player_depth:
+            # Need to go up first, then sideways
+            # Determine left or right based on alphabetical order of diverging paths
+            if common_depth < len(mole_parts) and common_depth < len(player_parts):
+                if mole_parts[common_depth] < player_parts[common_depth]:
+                    return {"direction": "up-left", "angle": 225}
+                else:
+                    return {"direction": "up-right", "angle": 315}
+            return {"direction": "up", "angle": 270}
+        else:
+            # At same level or need to go down and sideways
+            if common_depth < len(mole_parts):
+                # Determine left or right based on tree structure
+                # This is a simplification - in reality we'd need to check the actual tree layout
+                if mole_parts[common_depth] < (player_parts[common_depth] if common_depth < len(player_parts) else 'z'):
+                    return {"direction": "left", "angle": 180}
+                else:
+                    return {"direction": "right", "angle": 0}
+            return {"direction": "down", "angle": 90}
+    
+    def calculate_path_distance(self, from_path, to_path):
+        """Calculate the minimum number of cd commands needed to go from one path to another"""
+        if from_path == to_path:
+            return 0
+        
+        from_parts = from_path.split('/')
+        to_parts = to_path.split('/')
+        
+        # Remove empty strings
+        from_parts = [p for p in from_parts if p]
+        to_parts = [p for p in to_parts if p]
+        
+        # Find common ancestor depth
+        common_depth = 0
+        for i in range(min(len(from_parts), len(to_parts))):
+            if from_parts[i] == to_parts[i]:
+                common_depth += 1
+            else:
+                break
+        
+        # Calculate moves needed
+        moves_up = len(from_parts) - common_depth
+        moves_down = len(to_parts) - common_depth
+        
+        return moves_up + moves_down
+    
     def _set_random_start_position(self):
         """Set a random starting position for the player"""
         # Get all directories that could be valid starting positions
@@ -329,6 +441,7 @@ class FileSystemTree(models.Model):
             # Save previous location before moving
             self.previous_location = self.player_location
             self.player_location = new_path
+            self.total_directories_visited += 1
             self.save()
             return True, f"Moved to {self.player_location}"
         else:
@@ -367,6 +480,7 @@ class FileSystemTree(models.Model):
         # Save current location as previous (for cd -)
         self.previous_location = self.player_location
         self.player_location = target_dir
+        self.total_directories_visited += 1
         self.save()
         
         return True, f"Popped and moved to {self.player_location}"
@@ -420,6 +534,10 @@ class GameSession(models.Model):
     commands_used = models.IntegerField(default=0)
     directories_visited = models.IntegerField(default=0)
     time_taken = models.DurationField(null=True, blank=True)
+    moles_killed = models.IntegerField(default=0)
+    
+    # Per-mole tracking
+    mole_stats = models.JSONField(default=list)  # List of {mole_number, location, commands, time, distance}
     
     # Command history
     command_history = models.JSONField(default=list)
@@ -435,3 +553,40 @@ class GameSession(models.Model):
         })
         self.commands_used += 1
         self.save()
+    
+    def record_mole_kill(self, mole_location, commands_for_mole, time_for_mole, distance_traveled):
+        """Record statistics for a mole kill"""
+        self.moles_killed += 1
+        self.mole_stats.append({
+            'mole_number': self.moles_killed,
+            'location': mole_location,
+            'commands': commands_for_mole,
+            'time': str(time_for_mole),
+            'distance': distance_traveled
+        })
+        self.save()
+    
+    def calculate_score(self):
+        """Calculate a score based on performance"""
+        if self.moles_killed == 0:
+            return 0
+        
+        # Base score per mole
+        base_score = 1000
+        
+        # Calculate average performance
+        total_commands = sum(stat['commands'] for stat in self.mole_stats)
+        avg_commands = total_commands / self.moles_killed if self.moles_killed > 0 else 0
+        
+        # Score formula (rough draft)
+        # More moles = better
+        # Fewer commands = better
+        # Less time = better (when we implement timing)
+        score = self.moles_killed * base_score
+        
+        # Efficiency bonus (fewer commands is better)
+        if avg_commands > 0:
+            efficiency_multiplier = max(0.5, min(2.0, 10 / avg_commands))
+            score *= efficiency_multiplier
+        
+        return int(score)

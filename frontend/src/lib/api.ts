@@ -29,6 +29,14 @@ export interface FileSystemTree {
   completed_at: string | null;
   tree_data: TreeNode;
   total_directories: number;
+  moles_killed?: number;
+  total_commands?: number;
+  total_directories_visited?: number;
+}
+
+export interface MoleDirection {
+  direction: string;
+  angle: number;
 }
 
 export interface CommandResponse {
@@ -37,6 +45,11 @@ export interface CommandResponse {
   output: string;
   current_path: string;
   game_won?: boolean;
+  mole_spawned?: boolean;
+  mole_direction?: MoleDirection | null;
+  score?: number;
+  moles_killed?: number;
+  new_mole_location?: string;
 }
 
 export interface GameCreationResponse {
