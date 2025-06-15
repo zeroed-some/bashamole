@@ -60,6 +60,28 @@ export interface FHSReferenceResponse {
   directories: FHSDirectory[];
 }
 
+export interface CommandCategory {
+  command: string;
+  description: string;
+  examples: string[];
+  options?: Record<string, string>;
+  variables?: Record<string, string>;
+}
+
+export interface SpecialPath {
+  path: string;
+  description: string;
+  examples: string[];
+}
+
+export interface CommandReferenceResponse {
+  navigation: CommandCategory[];
+  exploration: CommandCategory[];
+  utility: CommandCategory[];
+  game: CommandCategory[];
+  special_paths: SpecialPath[];
+}
+
 export const gameApi = {
   createGame: async (playerName: string = 'Anonymous'): Promise<GameCreationResponse> => {
     const response = await api.post('/trees/filesystem-trees/create_game/', {
@@ -94,6 +116,11 @@ export const gameApi = {
 
   getFHSReference: async (): Promise<FHSReferenceResponse> => {
     const response = await api.get('/trees/filesystem-trees/fhs_reference/');
+    return response.data;
+  },
+
+  getCommandReference: async (): Promise<CommandReferenceResponse> => {
+    const response = await api.get('/trees/filesystem-trees/command_reference/');
     return response.data;
   },
 };

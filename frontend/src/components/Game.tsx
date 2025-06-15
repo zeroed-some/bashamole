@@ -3,7 +3,7 @@
 // src/components/Game.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import TreeVisualizer from './TreeVisualizer';
-import { gameApi, FileSystemTree, FHSDirectory } from '@/lib/api';
+import { gameApi, FileSystemTree, FHSDirectory, CommandReferenceResponse } from '@/lib/api';
 
 interface CommandHistoryEntry {
   command: string;
@@ -31,6 +31,8 @@ const Game: React.FC = () => {
   const [hints, setHints] = useState<string[]>([]);
   const [showFHS, setShowFHS] = useState(false);
   const [fhsDirs, setFhsDirs] = useState<FHSDirectory[]>([]);
+  const [showCommands, setShowCommands] = useState(false);
+  const [commandRef, setCommandRef] = useState<CommandReferenceResponse | null>(null);
   const [terminalMinimized, setTerminalMinimized] = useState(true);
   const [hasPlayedIntro, setHasPlayedIntro] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -133,6 +135,19 @@ const Game: React.FC = () => {
       setShowFHS(true);
     } catch (error) {
       console.error('Failed to get FHS reference', error);
+    }
+  };
+
+  // Get command reference
+  const getCommandReference = async () => {
+    try {
+      if (!commandRef) {
+        const response = await gameApi.getCommandReference();
+        setCommandRef(response);
+      }
+      setShowCommands(true);
+    } catch (error) {
+      console.error('Failed to get command reference', error);
     }
   };
 
@@ -311,7 +326,13 @@ const Game: React.FC = () => {
         <div className={`flex items-center justify-between ${terminalColors.header} px-4 py-2 rounded-t-lg border-b`}>
           <div className="flex items-center gap-2">
             <div className="flex gap-1.5">
-              <div className="w-3.5 h-3.5 bg-red-500 rounded-full"></div>
+              <button
+                onClick={getCommandReference}
+                className="w-3.5 h-3.5 bg-red-500 hover:bg-red-400 rounded-full flex items-center justify-center transition-colors relative"
+                title="Command Reference"
+              >
+                <span className="text-[8px] font-bold text-gray-900 absolute">×</span>
+              </button>
               {gameState.tree && !gameState.tree.is_completed ? (
                 <button
                   onClick={getHints}
@@ -450,11 +471,131 @@ const Game: React.FC = () => {
         </div>
       )}
 
+      {/* Command Reference Modal */}
+      {showCommands && commandRef && (
+        <div className="absolute top-16 left-4 bg-red-900/95 backdrop-blur-sm border border-red-600 rounded-lg p-6 max-w-2xl max-h-[80vh] overflow-y-auto z-40 shadow-2xl">
+          <button
+            onClick={() => setShowCommands(false)}
+            className="absolute top-3 right-3 text-red-400 hover:text-red-300"
+          >
+            ✕
+          </button>
+          <h3 className="text-red-400 font-bold mb-4 text-lg">Command Reference</h3>
+          
+          <div className="space-y-6">
+            {/* Navigation Commands */}
+            <div>
+              <h4 className="text-red-300 font-semibold mb-3">Navigation Commands</h4>
+              <div className="space-y-3">
+                {commandRef.navigation.map((cmd, index) => (
+                  <div key={index} className="border-l-2 border-red-700 pl-3">
+                    <div className="flex items-start gap-3">
+                      <code className="text-red-200 font-terminal text-sm">{cmd.command}</code>
+                      <span className="text-red-100 text-sm">- {cmd.description}</span>
+                    </div>
+                    {cmd.examples && (
+                      <div className="mt-1">
+                        <span className="text-red-300 text-xs">Examples: </span>
+                        <code className="text-red-200 text-xs">{cmd.examples.join(', ')}</code>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Exploration Commands */}
+            <div>
+              <h4 className="text-red-300 font-semibold mb-3">Exploration Commands</h4>
+              <div className="space-y-3">
+                {commandRef.exploration.map((cmd, index) => (
+                  <div key={index} className="border-l-2 border-red-700 pl-3">
+                    <div className="flex items-start gap-3">
+                      <code className="text-red-200 font-terminal text-sm">{cmd.command}</code>
+                      <span className="text-red-100 text-sm">- {cmd.description}</span>
+                    </div>
+                    {cmd.options && (
+                      <div className="mt-1 ml-4">
+                        {Object.entries(cmd.options).map(([opt, desc]) => (
+                          <div key={opt} className="text-xs">
+                            <code className="text-red-300">{opt}</code>
+                            <span className="text-red-200 ml-2">{desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Utility Commands */}
+            <div>
+              <h4 className="text-red-300 font-semibold mb-3">Utility Commands</h4>
+              <div className="space-y-3">
+                {commandRef.utility.map((cmd, index) => (
+                  <div key={index} className="border-l-2 border-red-700 pl-3">
+                    <div className="flex items-start gap-3">
+                      <code className="text-red-200 font-terminal text-sm">{cmd.command}</code>
+                      <span className="text-red-100 text-sm">- {cmd.description}</span>
+                    </div>
+                    {cmd.variables && (
+                      <div className="mt-1 ml-4">
+                        {Object.entries(cmd.variables).map(([variable, desc]) => (
+                          <div key={variable} className="text-xs">
+                            <code className="text-red-300">{variable}</code>
+                            <span className="text-red-200 ml-2">{desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Game Commands */}
+            <div>
+              <h4 className="text-red-300 font-semibold mb-3">Game Commands</h4>
+              <div className="space-y-3">
+                {commandRef.game.map((cmd, index) => (
+                  <div key={index} className="border-l-2 border-red-700 pl-3">
+                    <div className="flex items-start gap-3">
+                      <code className="text-red-200 font-terminal text-sm">{cmd.command}</code>
+                      <span className="text-red-100 text-sm">- {cmd.description}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Special Paths */}
+            <div>
+              <h4 className="text-red-300 font-semibold mb-3">Special Paths</h4>
+              <div className="space-y-3">
+                {commandRef.special_paths.map((path, index) => (
+                  <div key={index} className="border-l-2 border-red-700 pl-3">
+                    <div className="flex items-start gap-3">
+                      <code className="text-red-200 font-terminal text-sm">{path.path}</code>
+                      <span className="text-red-100 text-sm">- {path.description}</span>
+                    </div>
+                    <div className="mt-1">
+                      <span className="text-red-300 text-xs">Examples: </span>
+                      <code className="text-red-200 text-xs">{path.examples.join(', ')}</code>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom Game Bar - Updated with blue shade */}
-      <div className={`absolute bottom-0 left-0 right-0 ${isDarkMode ? 'bg-slate-800/90' : 'bg-blue-50/90'} backdrop-blur-sm border-t ${isDarkMode ? 'border-slate-700' : 'border-blue-200'} p-4 z-20`}>
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
+      <div className={`absolute bottom-0 left-0 right-0 ${isDarkMode ? 'bg-slate-800/90' : 'bg-blue-50/90'} backdrop-blur-sm border-t ${isDarkMode ? 'border-slate-700' : 'border-blue-200'} p-3 z-20`}>
+        <div className="max-w-7xl mx-auto flex justify-between items-center px-4">
           <div className="flex items-center gap-4">
-            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}><span className='font-terminal bg-gray-200 dark:bg-gray-700 text-red-900 dark:text-red-400 px-1 py-0 rounded'>bash</span>amole</h1>
+            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}><span className='font-terminal bg-gray-200 dark:bg-gray-500 text-red-900 dark:text-red-400 px-0.5 py-0 rounded'>bash</span> amole</h1>
           </div>
           
           <div className="flex items-center gap-3">
@@ -464,7 +605,7 @@ const Game: React.FC = () => {
               </div>
             ) : (
               <div className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-blue-700'}`}>
-                Click nodes or use terminal
+                click adjacent nodes or use the terminal
               </div>
             )}
             <button

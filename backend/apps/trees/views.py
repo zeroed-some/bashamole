@@ -18,6 +18,105 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
     serializer_class = FileSystemTreeSerializer
     
     @action(detail=False, methods=['get'])
+    def command_reference(self, request):
+        """Get command reference"""
+        commands = {
+            "navigation": [
+                {
+                    "command": "cd <directory>",
+                    "description": "Change to specified directory",
+                    "examples": ["cd projects", "cd /home/alice", "cd .."]
+                },
+                {
+                    "command": "cd",
+                    "description": "Go to home directory",
+                    "examples": ["cd"]
+                },
+                {
+                    "command": "pushd <directory>",
+                    "description": "Push directory onto stack and change to it",
+                    "examples": ["pushd /var/log", "pushd ~/Documents"]
+                },
+                {
+                    "command": "popd",
+                    "description": "Pop directory from stack and change to it",
+                    "examples": ["popd"]
+                }
+            ],
+            "exploration": [
+                {
+                    "command": "ls [-la]",
+                    "description": "List directory contents",
+                    "examples": ["ls", "ls -l", "ls -la"],
+                    "options": {
+                        "-l": "Long format with details",
+                        "-a": "Show hidden entries (. and ..)"
+                    }
+                },
+                {
+                    "command": "pwd",
+                    "description": "Print current working directory",
+                    "examples": ["pwd"]
+                },
+                {
+                    "command": "tree [-L depth]",
+                    "description": "Display directory tree ([X] marks mole location)",
+                    "examples": ["tree", "tree -L 2", "tree -L 5"],
+                    "options": {
+                        "-L": "Limit depth (1-5)"
+                    }
+                },
+                {
+                    "command": "dirs",
+                    "description": "Display directory stack",
+                    "examples": ["dirs"]
+                }
+            ],
+            "utility": [
+                {
+                    "command": "echo <text>",
+                    "description": "Display text or variables",
+                    "examples": ["echo hello", "echo $HOME", "echo $PWD"],
+                    "variables": {
+                        "$HOME": "Home directory path",
+                        "$PWD": "Current directory path",
+                        "$OLDPWD": "Previous directory path"
+                    }
+                },
+                {
+                    "command": "help",
+                    "description": "Show command help",
+                    "examples": ["help"]
+                }
+            ],
+            "game": [
+                {
+                    "command": "killall moles",
+                    "description": "Eliminate moles when in the same directory",
+                    "examples": ["killall moles"]
+                }
+            ],
+            "special_paths": [
+                {
+                    "path": "~",
+                    "description": "Home directory",
+                    "examples": ["cd ~", "cd ~/Documents"]
+                },
+                {
+                    "path": "-",
+                    "description": "Previous directory",
+                    "examples": ["cd -"]
+                },
+                {
+                    "path": "..",
+                    "description": "Parent directory",
+                    "examples": ["cd ..", "cd ../projects"]
+                }
+            ]
+        }
+        return Response(commands)
+    
+    @action(detail=False, methods=['get'])
     def fhs_reference(self, request):
         """Get FHS directory reference"""
         fhs_dirs = [
