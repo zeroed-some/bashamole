@@ -60,9 +60,26 @@ const Game: React.FC = () => {
         loading: false,
         error: null,
       });
+      
+      // Create a more dynamic starting message based on random location
+      const startLocation = response.tree.player_location;
+      let locationContext = '';
+      
+      if (startLocation.startsWith('/home')) {
+        locationContext = "You've been dropped in someone's home directory. ";
+      } else if (startLocation.startsWith('/usr')) {
+        locationContext = "You're in the system's usr hierarchy. ";
+      } else if (startLocation.startsWith('/var')) {
+        locationContext = "You're somewhere in the variable data area. ";
+      } else if (startLocation.startsWith('/opt')) {
+        locationContext = "You're in the optional packages directory. ";
+      } else {
+        locationContext = "You've been placed somewhere in the filesystem. ";
+      }
+      
       setCommandHistory([{
         command: 'Hunt started!',
-        output: response.mole_hint + '\nType "help" for available commands.',
+        output: `${response.mole_hint}\n${locationContext}Use 'pwd' to see where you are.\nType "help" for available commands.`,
         success: true,
       }]);
       setHints([]);
@@ -162,11 +179,7 @@ const Game: React.FC = () => {
     return treeData;
   };
 
-  // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    executeCommand(command);
-  };
+
 
   // Handle node click in visualizer
   const handleNodeClick = (path: string) => {
@@ -301,13 +314,19 @@ const Game: React.FC = () => {
               <span className="text-gray-400 mx-1">::</span>
               <span className="text-blue-400">{gameState.tree?.player_location || '~'}</span>
               <span className="text-gray-400 ml-1">$</span>
-              <form onSubmit={handleSubmit} className="flex-1 ml-2">
+              <div className="flex-1 ml-2">
                 <div className="relative">
                   <input
                     ref={inputRef}
                     type="text"
                     value={command}
                     onChange={(e) => setCommand(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        executeCommand(command);
+                      }
+                    }}
                     disabled={executing || gameState.tree?.is_completed}
                     className="w-full bg-transparent text-gray-300 outline-none caret-transparent"
                     placeholder=""
@@ -328,7 +347,7 @@ const Game: React.FC = () => {
                     _
                   </span>
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         )}

@@ -52,6 +52,9 @@ class FileSystemTree(models.Model):
         # Place the mole in a random directory (not in standard FHS locations)
         self._place_mole()
         
+        # Set random starting position for player
+        self._set_random_start_position()
+        
         # Cache the tree structure
         self.cache_tree()
         self.save()
@@ -193,6 +196,44 @@ class FileSystemTree(models.Model):
         if candidates.exists():
             mole_dir = random.choice(candidates)
             self.mole_location = mole_dir.path
+    
+    def _set_random_start_position(self):
+        """Set a random starting position for the player"""
+        # Get all directories that could be valid starting positions
+        # Exclude root and very deep directories (depth > 3)
+        candidates = DirectoryNode.objects.filter(
+            tree=self
+        ).exclude(
+            path="/"  # Don't start at root
+        )
+        
+        # Filter to reasonable starting positions
+        valid_starts = []
+        for node in candidates:
+            depth = node.path.count('/')
+            # Prefer directories at depth 1-3
+            if 1 <= depth <= 3:
+                # Don't start at the mole location
+                if node.path != self.mole_location:
+                    valid_starts.append(node)
+        
+        if valid_starts:
+            # Weight selection towards common starting areas but allow anywhere
+            weights = []
+            for node in valid_starts:
+                if node.path.startswith('/home'):
+                    weights.append(3)  # Higher weight for home directories
+                elif node.path.startswith('/usr'):
+                    weights.append(2)  # Medium weight for usr directories
+                else:
+                    weights.append(1)  # Lower weight for other directories
+            
+            # Select random starting position with weights
+            start_node = random.choices(valid_starts, weights=weights, k=1)[0]
+            self.player_location = start_node.path
+        else:
+            # Fallback to /home if no valid candidates
+            self.player_location = "/home"
     
     def cache_tree(self):
         """Cache the tree structure for efficient retrieval"""
