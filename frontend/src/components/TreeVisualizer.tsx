@@ -57,9 +57,12 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     navigation: { duration: 750, easing: d3.easeCubicInOut },
     intro: {
       phases: [
-        { duration: 1000 }, // Initial zoom
-        { duration: 2000, easing: d3.easeCubicInOut }, // Zoom out
-        { duration: 1000 }, // Pause
+        { duration: 1000 }, // Initial pause on root
+        { duration: 2000, easing: d3.easeCubicInOut }, // Zoom out to full tree
+        { duration: 1000 }, // Pause on full tree
+        { duration: 1500, easing: d3.easeCubicInOut }, // Zoom to mole
+        { duration: 800 }, // Brief pause on mole
+        { duration: 1200, easing: d3.easeCubicInOut }, // Zoom out partially
         { duration: 1500, easing: d3.easeCubicInOut } // Zoom to player
       ]
     },
@@ -85,6 +88,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     scaleExtent: [0.1, 3] as [number, number],
     defaultScale: 3,
     fullTreeScale: 0.8,
+    partialTreeScale: 1.5, // For the partial zoom out after showing mole
     treePadding: 200,
     nudgeOffset: { x: 0.15, y: 0.2 }
   };
@@ -128,6 +132,8 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
       strokeWidth: 3
     }
   };
+
+  const isAnimatingRef = useRef(false);
 
   useEffect(() => {
     if (!treeData || !svgRef.current || !containerRef.current) return;
@@ -531,28 +537,77 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
       const treeCenter = { x: treeCenterX, y: treeCenterY } as d3.HierarchyPointNode<TreeNode>;
       const fullTreeTransform = getZoomTransform(treeCenter, fullTreeScale);
       
+      // Find mole location
+      const moleNode = treeNodes.descendants().find(d => d.data.has_mole);
+      const moleTransform = moleNode ? getZoomTransform(moleNode, ZOOM_CONFIG.defaultScale) : null;
+      
+      // Partial tree view (for after showing mole)
+      const partialTreeTransform = getZoomTransform(treeCenter, ZOOM_CONFIG.partialTreeScale);
+      
       // Final player position with nudge offset
       const playerTransform = getZoomTransform(playerNode, ZOOM_CONFIG.defaultScale, 
                                               ZOOM_CONFIG.nudgeOffset.x, 
                                               ZOOM_CONFIG.nudgeOffset.y);
       
-      // Animate using zoom transitions
+      // Animate using zoom transitions with new sequence
       const phases = ANIMATION_CONFIG.intro.phases;
-      svg.transition()
-        .duration(phases[0].duration)
-        .call(zoom.transform, rootTransform)
+      
+      // Build the transition chain
+      if (moleTransform) {
+        isAnimatingRef.current = true;
+        
+        // Create a single transition and chain all the calls
+        svg.transition()
+          .duration(phases[0].duration)
+          .call(zoom.transform, rootTransform)
         .transition()
-        .duration(phases[1].duration)
-        .ease(phases[1].easing!)
-        .call(zoom.transform, fullTreeTransform)
+          .duration(phases[1].duration)
+          .ease(phases[1].easing!)
+          .call(zoom.transform, fullTreeTransform)
         .transition()
-        .duration(phases[2].duration)
-        .call(zoom.transform, fullTreeTransform)
+          .duration(phases[2].duration)
+          .call(zoom.transform, fullTreeTransform)
         .transition()
-        .duration(phases[3].duration)
-        .ease(phases[3].easing!)
-        .call(zoom.transform, playerTransform);
-    } else if (playerNode) {
+          .duration(phases[3].duration)
+          .ease(phases[3].easing!)
+          .call(zoom.transform, moleTransform)
+        .transition()
+          .duration(phases[4].duration)
+          .call(zoom.transform, moleTransform)
+        .transition()
+          .duration(phases[5].duration)
+          .ease(phases[5].easing!)
+          .call(zoom.transform, partialTreeTransform)
+        .transition()
+          .duration(phases[6].duration)
+          .ease(phases[6].easing!)
+          .call(zoom.transform, playerTransform)
+          .on('end', () => {
+            isAnimatingRef.current = false;
+          });
+      } else {
+        isAnimatingRef.current = true;
+        
+        // Shorter sequence without mole
+        svg.transition()
+          .duration(phases[0].duration)
+          .call(zoom.transform, rootTransform)
+        .transition()
+          .duration(phases[1].duration)
+          .ease(phases[1].easing!)
+          .call(zoom.transform, fullTreeTransform)
+        .transition()
+          .duration(phases[2].duration)
+          .call(zoom.transform, fullTreeTransform)
+        .transition()
+          .duration(phases[6].duration)
+          .ease(phases[6].easing!)
+          .call(zoom.transform, playerTransform)
+          .on('end', () => {
+            isAnimatingRef.current = false;
+          });
+      }
+    } else if (playerNode && !isAnimatingRef.current) {
       // No intro: position on player with nudge offset
       const playerTransform = getZoomTransform(playerNode, ZOOM_CONFIG.defaultScale,
                                               ZOOM_CONFIG.nudgeOffset.x,
