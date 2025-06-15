@@ -43,6 +43,7 @@ export interface GameCreationResponse {
   tree: FileSystemTree;
   session_id: number;
   mole_hint: string;
+  home_directory: string;
 }
 
 export interface HintResponse {

@@ -63,6 +63,7 @@ const Game: React.FC = () => {
       
       // Create a more dynamic starting message based on random location
       const startLocation = response.tree.player_location;
+      const homeDir = response.home_directory || '/home';
       let locationContext = '';
       
       if (startLocation.startsWith('/home')) {
@@ -79,7 +80,7 @@ const Game: React.FC = () => {
       
       setCommandHistory([{
         command: 'Hunt started!',
-        output: `${response.mole_hint}\n${locationContext}Use 'pwd' to see where you are.\nType "help" for available commands.`,
+        output: `${response.mole_hint}\n${locationContext}Your home directory is ${homeDir}.\nUse 'pwd' to see where you are, 'cd ~' to go home.\nType "help" for available commands.`,
         success: true,
       }]);
       setHints([]);

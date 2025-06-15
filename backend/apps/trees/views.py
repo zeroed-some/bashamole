@@ -39,7 +39,8 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
         return Response({
             'tree': serializer.data,
             'session_id': session.id,
-            'mole_hint': f"The mole is hiding somewhere in the filesystem!"
+            'mole_hint': f"The mole is hiding somewhere in the filesystem!",
+            'home_directory': tree.home_directory
         }, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['get'])
@@ -100,7 +101,11 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
         
         if cmd == 'cd':
             if len(parts) < 2:
-                response_data['output'] = "cd: missing operand"
+                # cd with no args goes to home directory
+                success, message = tree.move_player("~")
+                response_data['success'] = success
+                response_data['output'] = message if not success else ""
+                response_data['current_path'] = tree.player_location
             else:
                 target = parts[1]
                 success, message = tree.move_player(target)
@@ -112,23 +117,107 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                     session.directories_visited += 1
                     session.save()
         
+        elif cmd == 'pushd':
+            if len(parts) < 2:
+                # pushd with no args swaps top two directories on stack
+                if tree.directory_stack:
+                    success, message = tree.push_directory()
+                    response_data['success'] = success
+                    response_data['output'] = message
+                else:
+                    response_data['output'] = "pushd: no other directory"
+            else:
+                target = parts[1]
+                success, message = tree.push_directory(target)
+                response_data['success'] = success
+                response_data['output'] = message
+                response_data['current_path'] = tree.player_location
+                
+                if success and session:
+                    session.directories_visited += 1
+                    session.save()
+        
+        elif cmd == 'popd':
+            success, message = tree.pop_directory()
+            response_data['success'] = success
+            response_data['output'] = message
+            response_data['current_path'] = tree.player_location
+            
+            if success and session:
+                session.directories_visited += 1
+                session.save()
+        
+        elif cmd == 'dirs':
+            # Show directory stack
+            stack = tree.get_directory_stack()
+            if stack:
+                response_data['output'] = ' '.join(stack)
+            else:
+                response_data['output'] = tree.player_location
+            response_data['success'] = True
+        
         elif cmd == 'ls':
+            # Handle ls with options
+            show_all = '-a' in parts or '-la' in parts or '-al' in parts
+            long_format = '-l' in parts or '-la' in parts or '-al' in parts
+            
             try:
                 current_dir = DirectoryNode.objects.get(
                     tree=tree, 
                     path=tree.player_location
                 )
                 contents = current_dir.get_contents()
+                
+                output_lines = []
+                
+                if show_all:
+                    # Add . and .. entries
+                    if long_format:
+                        output_lines.append("drwxr-xr-x  .  " + current_dir.description)
+                        if current_dir.parent:
+                            output_lines.append("drwxr-xr-x  ..  " + current_dir.parent.description)
+                    else:
+                        output_lines.extend(['.', '..'])
+                
                 if contents:
-                    response_data['output'] = '\n'.join([d.name for d in contents])
+                    for d in contents:
+                        if long_format:
+                            output_lines.append(f"drwxr-xr-x  {d.name}  {d.description}")
+                        else:
+                            output_lines.append(d.name)
+                
+                if long_format:
+                    response_data['output'] = '\n'.join(output_lines)
                 else:
-                    response_data['output'] = ''
+                    # Format in columns for regular ls
+                    if output_lines:
+                        response_data['output'] = '  '.join(output_lines)
+                    else:
+                        response_data['output'] = ''
+                
                 response_data['success'] = True
             except DirectoryNode.DoesNotExist:
                 response_data['output'] = "ls: cannot access directory"
         
         elif cmd == 'pwd':
             response_data['output'] = tree.player_location
+            response_data['success'] = True
+        
+        elif cmd == 'echo':
+            # Simple echo implementation
+            if len(parts) > 1:
+                # Handle special variables
+                echo_text = ' '.join(parts[1:])
+                if echo_text == '$HOME':
+                    response_data['output'] = tree.home_directory
+                elif echo_text == '$PWD':
+                    response_data['output'] = tree.player_location
+                elif echo_text == '$OLDPWD':
+                    response_data['output'] = tree.previous_location or ''
+                else:
+                    response_data['output'] = echo_text
+            else:
+                response_data['output'] = ''
             response_data['success'] = True
         
         elif cmd == 'killall' and len(parts) > 1 and parts[1] == 'moles':
@@ -151,11 +240,21 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
         
         elif cmd == 'help':
             response_data['output'] = """Available commands:
-cd <directory>  - Change directory
-ls              - List directory contents
-pwd             - Print working directory
-killall moles   - Eliminate moles (when in the same directory)
-help            - Show this help message"""
+cd <directory>    - Change directory (supports ~, -, and ..)
+cd                - Go to home directory
+pushd <directory> - Push directory onto stack and change to it
+popd              - Pop directory from stack and change to it
+dirs              - Display directory stack
+ls [-la]          - List directory contents
+pwd               - Print working directory
+echo <text>       - Display text (supports $HOME, $PWD, $OLDPWD)
+killall moles     - Eliminate moles (when in the same directory)
+help              - Show this help message
+
+Special paths:
+~   - Home directory
+-   - Previous directory
+..  - Parent directory"""
             response_data['success'] = True
         
         else:

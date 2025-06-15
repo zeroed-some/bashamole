@@ -17,6 +17,11 @@ class FileSystemTree(models.Model):
     is_completed = models.BooleanField(default=False)
     completed_at = models.DateTimeField(null=True, blank=True)
     
+    # Navigation state
+    previous_location = models.CharField(max_length=500, default="")  # For cd -
+    directory_stack = models.JSONField(default=list)  # For pushd/popd
+    home_directory = models.CharField(max_length=500, default="/home")  # Player's home
+    
     # Cached tree structure
     tree_data = models.JSONField(null=True, blank=True)
     
@@ -231,9 +236,22 @@ class FileSystemTree(models.Model):
             # Select random starting position with weights
             start_node = random.choices(valid_starts, weights=weights, k=1)[0]
             self.player_location = start_node.path
+            
+            # Set home directory based on starting location
+            if start_node.path.startswith('/home/'):
+                # Extract the user's home directory
+                parts = start_node.path.split('/')
+                if len(parts) >= 3:
+                    self.home_directory = f"/home/{parts[2]}"
+                else:
+                    self.home_directory = "/home"
+            else:
+                # Default home directory
+                self.home_directory = "/home"
         else:
             # Fallback to /home if no valid candidates
             self.player_location = "/home"
+            self.home_directory = "/home"
     
     def cache_tree(self):
         """Cache the tree structure for efficient retrieval"""
@@ -251,32 +269,113 @@ class FileSystemTree(models.Model):
         root = DirectoryNode.objects.get(tree=self, path="/")
         self.tree_data = build_tree_dict(root)
     
-    def move_player(self, target_path):
-        """Move player to a new location if valid"""
-        # Normalize path
-        if not target_path.startswith('/'):
+    def resolve_path(self, path):
+        """Resolve a path that may contain ~ or be relative"""
+        if path == "~":
+            return self.home_directory
+        elif path.startswith("~/"):
+            return self.home_directory + path[1:]
+        elif path == "-":
+            return self.previous_location if self.previous_location else self.player_location
+        elif not path.startswith('/'):
             # Relative path
-            if target_path == "..":
-                # Go up one directory
-                if self.player_location == "/":
-                    return False, "Already at root directory"
-                self.player_location = "/".join(self.player_location.split("/")[:-1]) or "/"
+            if self.player_location == "/":
+                return "/" + path
             else:
-                # Go to subdirectory
-                new_path = f"{self.player_location}/{target_path}" if self.player_location != "/" else f"/{target_path}"
-                if DirectoryNode.objects.filter(tree=self, path=new_path).exists():
-                    self.player_location = new_path
-                else:
-                    return False, f"Directory not found: {target_path}"
+                return self.player_location + "/" + path
         else:
             # Absolute path
-            if DirectoryNode.objects.filter(tree=self, path=target_path).exists():
-                self.player_location = target_path
-            else:
-                return False, f"Directory not found: {target_path}"
+            return path
+    
+    def normalize_path(self, path):
+        """Normalize a path by resolving .. and . components"""
+        parts = path.split('/')
+        resolved = []
         
+        for part in parts:
+            if part == '' and len(resolved) == 0:
+                # Leading slash
+                resolved.append('')
+            elif part == '..':
+                if len(resolved) > 1:
+                    resolved.pop()
+            elif part != '.' and part != '':
+                resolved.append(part)
+        
+        if len(resolved) == 1 and resolved[0] == '':
+            return '/'
+        return '/'.join(resolved)
+    
+    def move_player(self, target_path):
+        """Move player to a new location if valid"""
+        # Resolve special path symbols
+        resolved_path = self.resolve_path(target_path)
+        
+        # Handle ".." in the path
+        if ".." in resolved_path or resolved_path == "..":
+            if resolved_path == "..":
+                # Go up one directory from current location
+                if self.player_location == "/":
+                    return False, "Already at root directory"
+                new_path = "/".join(self.player_location.split("/")[:-1]) or "/"
+            else:
+                # Normalize the path to handle .. components
+                new_path = self.normalize_path(resolved_path)
+        else:
+            new_path = resolved_path
+        
+        # Check if the directory exists
+        if DirectoryNode.objects.filter(tree=self, path=new_path).exists():
+            # Save previous location before moving
+            self.previous_location = self.player_location
+            self.player_location = new_path
+            self.save()
+            return True, f"Moved to {self.player_location}"
+        else:
+            return False, f"Directory not found: {target_path}"
+    
+    def push_directory(self, target_path=None):
+        """Push current directory onto stack and optionally change to new directory"""
+        # Add current directory to stack
+        if not isinstance(self.directory_stack, list):
+            self.directory_stack = []
+        
+        self.directory_stack.append(self.player_location)
+        
+        # If target path provided, change to it
+        if target_path:
+            success, message = self.move_player(target_path)
+            if success:
+                self.save()
+                return True, f"Pushed {self.directory_stack[-1]} and moved to {self.player_location}"
+            else:
+                # Remove from stack if move failed
+                self.directory_stack.pop()
+                return False, message
+        else:
+            self.save()
+            return True, f"Pushed {self.player_location} onto directory stack"
+    
+    def pop_directory(self):
+        """Pop directory from stack and change to it"""
+        if not self.directory_stack:
+            return False, "Directory stack is empty"
+        
+        # Get directory from stack
+        target_dir = self.directory_stack.pop()
+        
+        # Save current location as previous (for cd -)
+        self.previous_location = self.player_location
+        self.player_location = target_dir
         self.save()
-        return True, f"Moved to {self.player_location}"
+        
+        return True, f"Popped and moved to {self.player_location}"
+    
+    def get_directory_stack(self):
+        """Get the current directory stack for display"""
+        if not self.directory_stack:
+            return []
+        return list(self.directory_stack) + [self.player_location]
     
     def check_win_condition(self):
         """Check if player is in the same directory as the mole"""
