@@ -117,7 +117,7 @@ class FileSystemTree(models.Model):
         
         # Create user directories
         home = DirectoryNode.objects.get(tree=self, path="/home")
-        for username in ["alice", "bob", "charlie"]:
+        for username in ["sarah", "bob", "charlie"]:
             user_home = DirectoryNode.objects.create(
                 tree=self,
                 name=username,
@@ -153,7 +153,7 @@ class FileSystemTree(models.Model):
         
         # Add procedural dirs to certain locations
         base_paths = [
-            "/home/alice", "/home/bob", "/home/charlie",
+            "/home/sarah", "/home/bob", "/home/charlie",
             "/opt", "/var", "/usr/local"
         ]
         
@@ -201,7 +201,7 @@ class FileSystemTree(models.Model):
             tree=self,
             is_fhs_standard=False
         ).exclude(path__in=[
-            "/home", "/home/alice", "/home/bob", "/home/charlie"
+            "/home", "/home/sarah", "/home/bob", "/home/charlie"
         ])
         
         if candidates.exists():
