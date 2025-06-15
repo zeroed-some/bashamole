@@ -29,7 +29,8 @@ const Game: React.FC = () => {
   const [executing, setExecuting] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [hints, setHints] = useState<string[]>([]);
-  const [terminalMinimized, setTerminalMinimized] = useState(false);
+  const [terminalMinimized, setTerminalMinimized] = useState(true);
+  const [hasPlayedIntro, setHasPlayedIntro] = useState(false);
   
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,13 +61,14 @@ const Game: React.FC = () => {
         error: null,
       });
       setCommandHistory([{
-        command: '🎮 Game started!',
+        command: 'Hunt started!',
         output: response.mole_hint + '\nType "help" for available commands.',
         success: true,
       }]);
       setHints([]);
       setShowHints(false);
-      setTerminalMinimized(false);
+      setTerminalMinimized(true); // Keep terminal minimized on new game
+      setHasPlayedIntro(false); // Reset intro for new game
     } catch (error) {
       setGameState({
         ...gameState,
@@ -176,6 +178,17 @@ const Game: React.FC = () => {
     startNewGame();
   }, []);
 
+  // Mark intro as played after first render
+  useEffect(() => {
+    if (gameState.tree && !hasPlayedIntro) {
+      // Set timeout to mark intro as played after animation completes
+      const timer = setTimeout(() => {
+        setHasPlayedIntro(true);
+      }, 6500); // Total intro duration
+      return () => clearTimeout(timer);
+    }
+  }, [gameState.tree, hasPlayedIntro]);
+
   if (gameState.loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
@@ -207,7 +220,7 @@ const Game: React.FC = () => {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
         <div className="text-center">
-          <h1 className="text-4xl font-bold mb-4">🐭 Bashamole</h1>
+          <h1 className="text-4xl font-bold mb-4">Bashamole</h1>
           <p className="text-gray-400 mb-8">Hunt the mole in the Unix filesystem!</p>
           <button
             onClick={startNewGame}
@@ -228,6 +241,7 @@ const Game: React.FC = () => {
           treeData={gameState.tree.tree_data}
           playerLocation={gameState.tree.player_location}
           onNodeClick={handleNodeClick}
+          playIntro={!hasPlayedIntro}
         />
       </div>
 
@@ -256,7 +270,7 @@ const Game: React.FC = () => {
               {commandHistory.map((entry, index) => (
                 <div key={index} className="mb-2">
                   <div className="text-gray-400">
-                    {entry.command.startsWith('🎮') ? (
+                    {entry.command.startsWith('Game started!') ? (
                       <span className="text-yellow-400">{entry.command}</span>
                     ) : (
                       <>$ {entry.command}</>
@@ -306,7 +320,7 @@ const Game: React.FC = () => {
           >
             ✕
           </button>
-          <h3 className="text-yellow-400 font-bold mb-2">💡 Hints:</h3>
+          <h3 className="text-yellow-400 font-bold mb-2">Hints:</h3>
           {hints.map((hint, index) => (
             <p key={index} className="text-yellow-200 text-sm">{hint}</p>
           ))}
@@ -317,7 +331,7 @@ const Game: React.FC = () => {
       <div className="absolute bottom-0 left-0 right-0 bg-gray-900/90 backdrop-blur-sm border-t border-gray-700 p-4 z-20">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold">🐭 Bashamole</h1>
+            <h1 className="text-2xl font-bold">Bashamole</h1>
             <div className="text-sm text-gray-400">
               Location: <span className="font-mono text-blue-400">{gameState.tree.player_location}</span>
             </div>
@@ -326,7 +340,7 @@ const Game: React.FC = () => {
           <div className="flex items-center gap-3">
             {gameState.tree.is_completed ? (
               <div className="text-green-400 font-bold animate-pulse">
-                🎉 You found the mole!
+                You found the mole!
               </div>
             ) : (
               <>
@@ -334,7 +348,7 @@ const Game: React.FC = () => {
                   onClick={getHints}
                   className="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition"
                 >
-                  Get Hint 💡
+                  Get Hint
                 </button>
                 <div className="text-xs text-gray-500">
                   Click nodes or use terminal
