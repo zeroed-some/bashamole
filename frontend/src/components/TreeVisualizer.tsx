@@ -11,6 +11,7 @@ interface TreeVisualizerProps {
   onNodeClick?: (path: string) => void;
   playIntro?: boolean;
   isDarkMode?: boolean;
+  moleKilled?: boolean;
 }
 
 const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
@@ -19,6 +20,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
   onNodeClick,
   playIntro = true,
   isDarkMode = true,
+  moleKilled = false,
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,7 +69,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
   const LAYOUT_CONFIG = {
     nodeSpacing: 120,
     margin: { top: 100, right: 150, bottom: 100, left: 150 },
-    viewBoxMultiplier: 2,
+    viewBoxMultiplier: 2.5,
     minHeight: 1200,
     grid: { 
       size: 40, 
@@ -84,7 +86,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     defaultScale: 3,
     fullTreeScale: 0.8,
     treePadding: 200,
-    nudgeOffset: { x: 0.1, y: 0.2 }
+    nudgeOffset: { x: 0.15, y: 0.2 }
   };
 
   const LINK_CONFIG = {
@@ -472,7 +474,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
         .attr('dur', ANIMATION_CONFIG.celebration.duration)
         .attr('repeatCount', ANIMATION_CONFIG.celebration.repeatCount);
 
-      // Add mole SVG directly on the node
+      // Add mole SVG with falling animation when killed
       moleGroup
         .append('image')
         .attr('xlink:href', ICON_CONFIG.paths.mole)
@@ -480,7 +482,8 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
         .attr('height', ICON_CONFIG.size)
         .attr('x', ICON_CONFIG.offset)
         .attr('y', ICON_CONFIG.offset)
-        .style('pointer-events', 'none');
+        .style('pointer-events', 'none')
+        .classed('mole-death', moleKilled);
     }
 
     // Add zoom and pan behavior
@@ -567,7 +570,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
       }
     }
 
-  }, [treeData, playerLocation, onNodeClick, playIntro, isDarkMode]);
+  }, [treeData, playerLocation, onNodeClick, playIntro, isDarkMode, moleKilled]);
 
   return (
     <div ref={containerRef} className="w-full h-full">

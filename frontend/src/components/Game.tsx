@@ -36,6 +36,7 @@ const Game: React.FC = () => {
   const [terminalMinimized, setTerminalMinimized] = useState(true);
   const [hasPlayedIntro, setHasPlayedIntro] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [moleKilled, setMoleKilled] = useState(false);
   
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +106,7 @@ const Game: React.FC = () => {
       setShowHints(false);
       setTerminalMinimized(true); // Keep terminal minimized on new game
       setHasPlayedIntro(false); // Reset intro for new game
+      setMoleKilled(false); // Reset mole killed state
     } catch (error) {
       setGameState({
         ...gameState,
@@ -183,6 +185,7 @@ const Game: React.FC = () => {
 
       // Check if game won
       if (response.game_won) {
+        // First, show the mole
         setGameState(prev => ({
           ...prev,
           tree: prev.tree ? {
@@ -191,6 +194,11 @@ const Game: React.FC = () => {
             tree_data: updateTreeDataToShowMole(prev.tree!.tree_data, prev.tree!.player_location),
           } : null,
         }));
+        
+        // Then trigger the falling animation after a short delay
+        setTimeout(() => {
+          setMoleKilled(true);
+        }, 200);
       }
 
       setCommand('');
@@ -315,6 +323,7 @@ const Game: React.FC = () => {
           onNodeClick={handleNodeClick}
           playIntro={!hasPlayedIntro}
           isDarkMode={isDarkMode}
+          moleKilled={moleKilled}
         />
       </div>
 
@@ -366,7 +375,7 @@ const Game: React.FC = () => {
         {!terminalMinimized && (
           <div 
             ref={terminalRef}
-            className={`${terminalColors.content} p-4 font-terminal text-base h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700`}
+            className={`${terminalColors.content} p-4 font-terminal text-base h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700`}
             onClick={() => inputRef.current?.focus()}
           >
             {commandHistory.map((entry, index) => (
