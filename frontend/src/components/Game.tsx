@@ -31,9 +31,23 @@ const Game: React.FC = () => {
   const [hints, setHints] = useState<string[]>([]);
   const [terminalMinimized, setTerminalMinimized] = useState(true);
   const [hasPlayedIntro, setHasPlayedIntro] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
   
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Detect system color scheme preference
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    setIsDarkMode(mediaQuery.matches);
+    
+    const handleChange = (e: MediaQueryListEvent) => {
+      setIsDarkMode(e.matches);
+    };
+    
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   // Auto-scroll terminal to bottom
   useEffect(() => {
@@ -180,8 +194,6 @@ const Game: React.FC = () => {
     return treeData;
   };
 
-
-
   // Handle node click in visualizer
   const handleNodeClick = (path: string) => {
     executeCommand(`cd ${path}`);
@@ -203,12 +215,30 @@ const Game: React.FC = () => {
     }
   }, [gameState.tree, hasPlayedIntro]);
 
+  // Terminal color scheme based on dark/light mode
+  const terminalColors = isDarkMode ? {
+    frame: 'bg-stone-200 border-stone-300',
+    header: 'bg-stone-300 border-stone-400',
+    headerText: 'text-stone-900',
+    content: 'bg-black',
+    closeButton: 'text-stone-700 hover:text-stone-900'
+  } : {
+    frame: 'bg-blue-900 border-blue-800',
+    header: 'bg-blue-800 border-blue-700',
+    headerText: 'text-blue-100',
+    content: 'bg-black',
+    closeButton: 'text-blue-300 hover:text-white'
+  };
+
+  // Canvas background color based on dark/light mode
+  const canvasBackground = isDarkMode ? 'bg-gray-900' : 'bg-stone-100';
+
   if (gameState.loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+      <div className={`flex items-center justify-center min-h-screen ${canvasBackground} text-gray-900 dark:text-white`}>
         <div className="text-center">
           <div className="text-2xl mb-4">Loading Bashamole...</div>
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-current mx-auto"></div>
         </div>
       </div>
     );
@@ -216,9 +246,9 @@ const Game: React.FC = () => {
 
   if (gameState.error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+      <div className={`flex items-center justify-center min-h-screen ${canvasBackground} text-gray-900 dark:text-white`}>
         <div className="text-center">
-          <div className="text-red-400 mb-4">{gameState.error}</div>
+          <div className="text-red-600 dark:text-red-400 mb-4">{gameState.error}</div>
           <button
             onClick={startNewGame}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
@@ -232,10 +262,10 @@ const Game: React.FC = () => {
 
   if (!gameState.tree) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+      <div className={`flex items-center justify-center min-h-screen ${canvasBackground} text-gray-900 dark:text-white`}>
         <div className="text-center">
           <h1 className="text-4xl font-bold mb-4">Bashamole</h1>
-          <p className="text-gray-400 mb-8">Hunt the mole in the Unix filesystem!</p>
+          <p className="text-gray-600 dark:text-gray-400 mb-8">Hunt the mole in the Unix filesystem!</p>
           <button
             onClick={startNewGame}
             className="px-8 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xl transition transform hover:scale-105"
@@ -248,34 +278,35 @@ const Game: React.FC = () => {
   }
 
   return (
-    <div className="relative min-h-screen bg-gray-900 text-white overflow-hidden">
+    <div className={`relative min-h-screen ${canvasBackground} overflow-hidden`}>
       {/* Tree Canvas - Full Screen Background */}
-      <div className="absolute inset-0 bg-gray-900">
+      <div className={`absolute inset-0 ${canvasBackground}`}>
         <TreeVisualizer
           treeData={gameState.tree.tree_data}
           playerLocation={gameState.tree.player_location}
           onNodeClick={handleNodeClick}
           playIntro={!hasPlayedIntro}
+          isDarkMode={isDarkMode}
         />
       </div>
 
       {/* Floating Terminal - Top Left */}
-      <div className={`absolute top-4 left-4 bg-gray-900 rounded-lg shadow-2xl border border-gray-800 transition-all duration-300 z-30 ${
+      <div className={`absolute top-4 left-4 ${terminalColors.frame} rounded-lg shadow-2xl border transition-all duration-300 z-30 ${
         terminalMinimized ? 'w-80' : 'w-[700px]'
       }`}>
         {/* Terminal Header */}
-        <div className="flex items-center justify-between bg-gray-800 px-4 py-2 rounded-t-lg border-b border-gray-700">
+        <div className={`flex items-center justify-between ${terminalColors.header} px-4 py-2 rounded-t-lg border-b`}>
           <div className="flex items-center gap-2">
             <div className="flex gap-1.5">
               <div className="w-3 h-3 bg-red-500 rounded-full"></div>
               <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
             </div>
-            <h3 className="text-sm font-medium text-gray-300 ml-2">bash</h3>
+            <h3 className={`text-sm font-medium ${terminalColors.headerText} ml-2`}>bash</h3>
           </div>
           <button
             onClick={() => setTerminalMinimized(!terminalMinimized)}
-            className="text-gray-400 hover:text-white transition"
+            className={`${terminalColors.closeButton} transition`}
           >
             {terminalMinimized ? '▼' : '▲'}
           </button>
@@ -285,12 +316,12 @@ const Game: React.FC = () => {
         {!terminalMinimized && (
           <div 
             ref={terminalRef}
-            className="bg-black p-4 font-mono text-base h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700"
+            className={`${terminalColors.content} p-4 font-mono text-base h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700`}
             onClick={() => inputRef.current?.focus()}
           >
             {commandHistory.map((entry, index) => (
               <div key={index} className="mb-1">
-                <div className="flex items-start">
+                <div className="flex items-start font-mono">
                   <span className="text-green-400">groundskeeper@molehill</span>
                   <span className="text-gray-400 mx-1">::</span>
                   <span className="text-blue-400">{entry.command.startsWith('Hunt started!') ? '~' : gameState.tree?.player_location || '~'}</span>
@@ -300,7 +331,7 @@ const Game: React.FC = () => {
                   </span>
                 </div>
                 {entry.output && (
-                  <div className={`${entry.success ? 'text-gray-300' : 'text-red-400'} ml-0 mt-1`}>
+                  <div className={`${entry.success ? 'text-gray-300' : 'text-red-400'} ml-0 mt-1 font-mono whitespace-pre-wrap`}>
                     {entry.output.split('\n').map((line, i) => (
                       <div key={i}>{line}</div>
                     ))}
@@ -310,13 +341,22 @@ const Game: React.FC = () => {
             ))}
             
             {/* Current input line */}
-            <div className="flex items-start">
+            <div className="flex items-start font-mono">
               <span className="text-green-400">groundskeeper@molehill</span>
               <span className="text-gray-400 mx-1">::</span>
               <span className="text-blue-400">{gameState.tree?.player_location || '~'}</span>
               <span className="text-gray-400 ml-1">$</span>
               <div className="flex-1 ml-2">
-                <div className="relative">
+                <div className="relative inline-block">
+                  <span className="text-gray-300 font-mono">{command}</span>
+                  <span 
+                    className="text-gray-300 font-mono"
+                    style={{ 
+                      animation: 'blink 1s step-end infinite'
+                    }}
+                  >
+                    _
+                  </span>
                   <input
                     ref={inputRef}
                     type="text"
@@ -329,7 +369,7 @@ const Game: React.FC = () => {
                       }
                     }}
                     disabled={executing || gameState.tree?.is_completed}
-                    className="w-full bg-transparent text-gray-300 outline-none caret-transparent"
+                    className="absolute inset-0 w-full bg-transparent text-transparent outline-none caret-transparent font-mono"
                     placeholder=""
                     autoFocus
                     spellCheck={false}
@@ -337,16 +377,6 @@ const Game: React.FC = () => {
                     autoCorrect="off"
                     autoCapitalize="off"
                   />
-                  {/* Blinking cursor */}
-                  <span 
-                    className="absolute text-gray-300 pointer-events-none"
-                    style={{ 
-                      left: `${command.length * 0.6}em`,
-                      animation: 'blink 1s step-end infinite'
-                    }}
-                  >
-                    _
-                  </span>
                 </div>
               </div>
             </div>
@@ -371,18 +401,18 @@ const Game: React.FC = () => {
       )}
 
       {/* Bottom Game Bar */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gray-900/90 backdrop-blur-sm border-t border-gray-700 p-4 z-20">
+      <div className={`absolute bottom-0 left-0 right-0 ${isDarkMode ? 'bg-gray-900/90' : 'bg-white/90'} backdrop-blur-sm border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-300'} p-4 z-20`}>
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold">Bashamole</h1>
-            <div className="text-sm text-gray-400">
-              Location: <span className="font-mono text-blue-400">{gameState.tree.player_location}</span>
+            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Bashamole</h1>
+            <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Location: <span className="font-mono text-blue-600 dark:text-blue-400">{gameState.tree.player_location}</span>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
             {gameState.tree.is_completed ? (
-              <div className="text-green-400 font-bold animate-pulse">
+              <div className="text-green-600 dark:text-green-400 font-bold animate-pulse">
                 You found the mole!
               </div>
             ) : (
@@ -393,14 +423,14 @@ const Game: React.FC = () => {
                 >
                   Get Hint
                 </button>
-                <div className="text-xs text-gray-500">
+                <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>
                   Click nodes or use terminal
                 </div>
               </>
             )}
             <button
               onClick={startNewGame}
-              className="px-3 py-1.5 bg-gray-700 text-white text-sm rounded hover:bg-gray-600 transition"
+              className={`px-3 py-1.5 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-300 hover:bg-gray-400'} text-white dark:text-white text-gray-900 text-sm rounded transition`}
             >
               New Game
             </button>

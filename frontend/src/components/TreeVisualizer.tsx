@@ -10,6 +10,7 @@ interface TreeVisualizerProps {
   playerLocation: string;
   onNodeClick?: (path: string) => void;
   playIntro?: boolean;
+  isDarkMode?: boolean;
 }
 
 const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
@@ -17,6 +18,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
   playerLocation,
   onNodeClick,
   playIntro = true,
+  isDarkMode = true,
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,8 +69,14 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     margin: { top: 100, right: 150, bottom: 100, left: 150 },
     viewBoxMultiplier: 2,
     minHeight: 1200,
-    grid: { size: 40, strokeColor: '#1f2937' },
-    background: { color: '#111827', opacity: 0.95 }
+    grid: { 
+      size: 40, 
+      strokeColor: isDarkMode ? '#1f2937' : '#d6d3d1' 
+    },
+    background: { 
+      color: isDarkMode ? '#111827' : '#f5f5f4',
+      opacity: isDarkMode ? 0.95 : 1
+    }
   };
 
   const ZOOM_CONFIG = {
@@ -82,8 +90,14 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
   const LINK_CONFIG = {
     gradient: {
       id: 'link-gradient-v',
-      start: { color: '#4B5563', opacity: 0.6 },
-      end: { color: '#6B7280', opacity: 0.3 }
+      start: { 
+        color: isDarkMode ? '#4B5563' : '#78716c',
+        opacity: isDarkMode ? 0.6 : 0.4
+      },
+      end: { 
+        color: isDarkMode ? '#6B7280' : '#a8a29e',
+        opacity: isDarkMode ? 0.3 : 0.2
+      }
     },
     strokeWidth: 2,
     opacity: 0.8
@@ -93,8 +107,11 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     fontSize: 14,
     fontWeight: { base: '500', player: '700' },
     offset: { parent: -32, leaf: 40 },
-    colors: { player: '#93C5FD', regular: '#E5E7EB' },
-    textShadow: '0 0 4px rgba(0,0,0,0.8)'
+    colors: { 
+      player: isDarkMode ? '#93C5FD' : '#1e40af',
+      regular: isDarkMode ? '#E5E7EB' : '#44403c'
+    },
+    textShadow: isDarkMode ? '0 0 4px rgba(0,0,0,0.8)' : '0 0 4px rgba(255,255,255,0.8)'
   };
 
   const GLOW_CONFIG = {
@@ -175,7 +192,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
       .attr('width', '100%')
       .attr('height', '100%')
       .attr('fill', 'url(#grid)')
-      .style('opacity', 0.3);
+      .style('opacity', isDarkMode ? 0.3 : 0.1);
 
     const g = svg
       .append('g')
@@ -486,7 +503,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
       }
     }
 
-  }, [treeData, playerLocation, onNodeClick, playIntro]);
+  }, [treeData, playerLocation, onNodeClick, playIntro, isDarkMode]);
 
   return (
     <div ref={containerRef} className="w-full h-full">
