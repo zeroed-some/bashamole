@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import TreeVisualizer from './TreeVisualizer';
-import { gameApi, FileSystemTree, FHSDirectory, CommandReferenceResponse, MoleDirection } from '@/lib/api';
+import { gameApi, FileSystemTree, FHSDirectory, CommandReferenceResponse, MoleDirection, TreeNode } from '@/lib/api';
 
 interface CommandHistoryEntry {
   command: string;
@@ -114,7 +114,7 @@ const Game: React.FC = () => {
       setTerminalMinimized(true); // Keep terminal minimized on new game
       setHasPlayedIntro(false); // Reset intro for new game
       setMoleKilled(false); // Reset mole killed state
-    } catch (error) {
+    } catch {
       setGameState({
         ...gameState,
         loading: false,
@@ -131,8 +131,8 @@ const Game: React.FC = () => {
       const response = await gameApi.getHint(gameState.tree.id);
       setHints(response.hints);
       setShowHints(true);
-    } catch (error) {
-      console.error('Failed to get hints', error);
+    } catch {
+      console.error('Failed to get hints');
     }
   };
 
@@ -142,8 +142,8 @@ const Game: React.FC = () => {
       const response = await gameApi.getFHSReference();
       setFhsDirs(response.directories);
       setShowFHS(true);
-    } catch (error) {
-      console.error('Failed to get FHS reference', error);
+    } catch {
+      console.error('Failed to get FHS reference');
     }
   };
 
@@ -155,8 +155,8 @@ const Game: React.FC = () => {
         setCommandRef(response);
       }
       setShowCommands(true);
-    } catch (error) {
-      console.error('Failed to get command reference', error);
+    } catch {
+      console.error('Failed to get command reference');
     }
   };
 
@@ -256,7 +256,7 @@ const Game: React.FC = () => {
       }
 
       setCommand('');
-    } catch (error) {
+    } catch {
       setCommandHistory(prev => [...prev, {
         command: cmd,
         output: 'Error: Failed to execute command. Check your connection.',
@@ -268,14 +268,14 @@ const Game: React.FC = () => {
   };
 
   // Update tree data to show mole when found
-  const updateTreeDataToShowMole = (treeData: any, molePath: string): any => {
+  const updateTreeDataToShowMole = (treeData: TreeNode, molePath: string): TreeNode => {
     if (treeData.path === molePath) {
       return { ...treeData, has_mole: true };
     }
     if (treeData.children) {
       return {
         ...treeData,
-        children: treeData.children.map((child: any) => 
+        children: treeData.children.map((child) => 
           updateTreeDataToShowMole(child, molePath)
         ),
       };
@@ -284,11 +284,11 @@ const Game: React.FC = () => {
   };
 
   // Remove mole from tree data
-  const removeMoleFromTree = (treeData: any): any => {
+  const removeMoleFromTree = (treeData: TreeNode): TreeNode => {
     return {
       ...treeData,
       has_mole: false,
-      children: treeData.children ? treeData.children.map((child: any) => removeMoleFromTree(child)) : []
+      children: treeData.children ? treeData.children.map((child) => removeMoleFromTree(child)) : []
     };
   };
 
