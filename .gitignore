@@ -7,6 +7,7 @@ backend/__pycache__/
 backend/**/__pycache__/
 backend/db.sqlite3
 backend/.env
+backend/.env.local
 backend/*.log
 backend/.coverage
 backend/htmlcov/
