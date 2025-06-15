@@ -27,7 +27,12 @@ body {
 
 /* Custom terminal font class */
 .font-terminal {
-  font-family: var(--font-terminal, 'Space Mono', 'Courier New', monospace);
+  font-family: var(--font-terminal, 'Anonymous Pro', 'Courier New', monospace);
+}
+
+/* Hide Next.js dev indicator */
+[data-nextjs-portal] {
+  display: none !important;
 }
 
 /* Custom scrollbar for terminal */

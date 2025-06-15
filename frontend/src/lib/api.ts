@@ -50,6 +50,16 @@ export interface HintResponse {
   hints: string[];
 }
 
+export interface FHSDirectory {
+  path: string;
+  name: string;
+  desc: string;
+}
+
+export interface FHSReferenceResponse {
+  directories: FHSDirectory[];
+}
+
 export const gameApi = {
   createGame: async (playerName: string = 'Anonymous'): Promise<GameCreationResponse> => {
     const response = await api.post('/trees/filesystem-trees/create_game/', {
@@ -79,6 +89,11 @@ export const gameApi = {
 
   getCurrentDirectory: async (treeId: number) => {
     const response = await api.get(`/trees/filesystem-trees/${treeId}/current_directory/`);
+    return response.data;
+  },
+
+  getFHSReference: async (): Promise<FHSReferenceResponse> => {
+    const response = await api.get('/trees/filesystem-trees/fhs_reference/');
     return response.data;
   },
 };

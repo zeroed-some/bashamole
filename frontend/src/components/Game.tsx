@@ -3,7 +3,7 @@
 // src/components/Game.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import TreeVisualizer from './TreeVisualizer';
-import { gameApi, FileSystemTree } from '@/lib/api';
+import { gameApi, FileSystemTree, FHSDirectory } from '@/lib/api';
 
 interface CommandHistoryEntry {
   command: string;
@@ -29,6 +29,8 @@ const Game: React.FC = () => {
   const [executing, setExecuting] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [hints, setHints] = useState<string[]>([]);
+  const [showFHS, setShowFHS] = useState(false);
+  const [fhsDirs, setFhsDirs] = useState<FHSDirectory[]>([]);
   const [terminalMinimized, setTerminalMinimized] = useState(true);
   const [hasPlayedIntro, setHasPlayedIntro] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -120,6 +122,17 @@ const Game: React.FC = () => {
       setShowHints(true);
     } catch (error) {
       console.error('Failed to get hints', error);
+    }
+  };
+
+  // Get FHS reference
+  const getFHSReference = async () => {
+    try {
+      const response = await gameApi.getFHSReference();
+      setFhsDirs(response.directories);
+      setShowFHS(true);
+    } catch (error) {
+      console.error('Failed to get FHS reference', error);
     }
   };
 
@@ -298,9 +311,25 @@ const Game: React.FC = () => {
         <div className={`flex items-center justify-between ${terminalColors.header} px-4 py-2 rounded-t-lg border-b`}>
           <div className="flex items-center gap-2">
             <div className="flex gap-1.5">
-              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <div className="w-3.5 h-3.5 bg-red-500 rounded-full"></div>
+              {gameState.tree && !gameState.tree.is_completed ? (
+                <button
+                  onClick={getHints}
+                  className="w-3.5 h-3.5 bg-yellow-500 hover:bg-yellow-400 rounded-full flex items-center justify-center transition-colors relative"
+                  title="Get Hint"
+                >
+                  <span className="text-[9px] font-bold text-gray-900 absolute">?</span>
+                </button>
+              ) : (
+                <div className="w-3.5 h-3.5 bg-yellow-500 rounded-full"></div>
+              )}
+              <button
+                onClick={getFHSReference}
+                className="w-3.5 h-3.5 bg-green-500 hover:bg-green-400 rounded-full flex items-center justify-center transition-colors relative"
+                title="FHS Directory Reference"
+              >
+                <span className="text-[9px] font-bold text-gray-900 absolute">/</span>
+              </button>
             </div>
             <h3 className={`text-sm font-medium ${terminalColors.headerText} ml-2`}>bash</h3>
           </div>
@@ -384,9 +413,9 @@ const Game: React.FC = () => {
         )}
       </div>
 
-      {/* Hints Popup */}
+      {/* Hints Popup - Now positioned relative to terminal */}
       {showHints && hints.length > 0 && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-yellow-900/95 backdrop-blur-sm border border-yellow-600 rounded-lg p-4 max-w-md z-30 shadow-2xl">
+        <div className="absolute top-16 left-4 bg-yellow-900/95 backdrop-blur-sm border border-yellow-600 rounded-lg p-4 max-w-md z-40 shadow-2xl">
           <button
             onClick={() => setShowHints(false)}
             className="absolute top-2 right-2 text-yellow-400 hover:text-yellow-300"
@@ -400,14 +429,32 @@ const Game: React.FC = () => {
         </div>
       )}
 
-      {/* Bottom Game Bar */}
-      <div className={`absolute bottom-0 left-0 right-0 ${isDarkMode ? 'bg-gray-900/90' : 'bg-white/90'} backdrop-blur-sm border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-300'} p-4 z-20`}>
+      {/* FHS Reference Modal */}
+      {showFHS && (
+        <div className="absolute top-16 left-4 bg-green-900/95 backdrop-blur-sm border border-green-600 rounded-lg p-6 max-w-2xl z-40 shadow-2xl">
+          <button
+            onClick={() => setShowFHS(false)}
+            className="absolute top-3 right-3 text-green-400 hover:text-green-300"
+          >
+            ✕
+          </button>
+          <h3 className="text-green-400 font-bold mb-4 text-lg">Filesystem Hierarchy Standard (FHS)</h3>
+          <div className="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
+            {fhsDirs.map((dir, index) => (
+              <div key={index} className="flex items-start gap-3">
+                <code className="text-green-300 font-terminal text-sm font-bold min-w-[80px]">{dir.path}</code>
+                <span className="text-green-200 text-sm">{dir.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Game Bar - Updated with blue shade */}
+      <div className={`absolute bottom-0 left-0 right-0 ${isDarkMode ? 'bg-slate-800/90' : 'bg-blue-50/90'} backdrop-blur-sm border-t ${isDarkMode ? 'border-slate-700' : 'border-blue-200'} p-4 z-20`}>
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
             <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}><span className='font-terminal bg-gray-200 dark:bg-gray-700 text-red-900 dark:text-red-400 px-1 py-0 rounded'>bash</span>amole</h1>
-            {/* <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Location: <span className="font-terminal text-blue-600 dark:text-blue-400">{gameState.tree.player_location}</span>
-            </div> */}
           </div>
           
           <div className="flex items-center gap-3">
@@ -416,21 +463,13 @@ const Game: React.FC = () => {
                 You found a mole!
               </div>
             ) : (
-              <>
-                <button
-                  onClick={getHints}
-                  className="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition"
-                >
-                  Get Hint
-                </button>
-                <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>
-                  Click nodes or use terminal
-                </div>
-              </>
+              <div className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-blue-700'}`}>
+                Click nodes or use terminal
+              </div>
             )}
             <button
               onClick={startNewGame}
-              className={`px-3 py-1.5 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-300 hover:bg-gray-400'} text-white dark:text-white text-gray-900 text-sm rounded transition`}
+              className={`px-3 py-1.5 ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-blue-200 hover:bg-blue-300'} ${isDarkMode ? 'text-white' : 'text-blue-900'} text-sm rounded transition`}
             >
               New Game
             </button>

@@ -17,6 +17,31 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
     queryset = FileSystemTree.objects.all()
     serializer_class = FileSystemTreeSerializer
     
+    @action(detail=False, methods=['get'])
+    def fhs_reference(self, request):
+        """Get FHS directory reference"""
+        fhs_dirs = [
+            {"path": "/bin", "name": "bin", "desc": "Essential command binaries"},
+            {"path": "/boot", "name": "boot", "desc": "Static files of the boot loader"},
+            {"path": "/dev", "name": "dev", "desc": "Device files"},
+            {"path": "/etc", "name": "etc", "desc": "Host-specific system configuration"},
+            {"path": "/home", "name": "home", "desc": "User home directories"},
+            {"path": "/lib", "name": "lib", "desc": "Essential shared libraries and kernel modules"},
+            {"path": "/media", "name": "media", "desc": "Mount points for removable media"},
+            {"path": "/mnt", "name": "mnt", "desc": "Mount point for temporarily mounted filesystems"},
+            {"path": "/opt", "name": "opt", "desc": "Add-on application software packages"},
+            {"path": "/proc", "name": "proc", "desc": "Virtual filesystem for process information"},
+            {"path": "/root", "name": "root", "desc": "Home directory for the root user"},
+            {"path": "/run", "name": "run", "desc": "Data relevant to running processes"},
+            {"path": "/sbin", "name": "sbin", "desc": "Essential system binaries"},
+            {"path": "/srv", "name": "srv", "desc": "Data for services provided by this system"},
+            {"path": "/sys", "name": "sys", "desc": "Virtual filesystem for system information"},
+            {"path": "/tmp", "name": "tmp", "desc": "Temporary files"},
+            {"path": "/usr", "name": "usr", "desc": "Secondary hierarchy"},
+            {"path": "/var", "name": "var", "desc": "Variable data"},
+        ]
+        return Response({"directories": fhs_dirs})
+    
     @action(detail=False, methods=['post'])
     def create_game(self, request):
         """Create a new game with a generated filesystem tree"""
