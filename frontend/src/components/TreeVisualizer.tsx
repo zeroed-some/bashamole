@@ -583,317 +583,34 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
         .attr('height', bbox.height + LABEL_CONFIG.background.padding.y * 2);
     });
 
-    // Add minimal SVG icons for special directories
+    // Add icon images for special directories
     node.each(function(d) {
       const nodeEl = d3.select(this);
-      const iconSize = 24;
-      const iconOffset = -iconSize / 2;
+      let iconPath = null;
       
-      // Create icon group
-      const iconGroup = nodeEl.append('g')
-        .attr('class', 'directory-icon')
-        .style('pointer-events', 'none');
+      // Map paths to icon files
+      if (d.data.path === '/home') iconPath = '/icons/home.svg';
+      else if (d.data.path === '/tmp') iconPath = '/icons/trash.svg';
+      else if (d.data.path === '/etc') iconPath = '/icons/config.svg';
+      else if (d.data.path === '/bin' || d.data.path === '/sbin') iconPath = '/icons/terminal.svg';
+      else if (d.data.path === '/var') iconPath = '/icons/database.svg';
+      else if (d.data.path === '/usr') iconPath = '/icons/folder.svg';
+      else if (d.data.path === '/opt') iconPath = '/icons/package.svg';
+      else if (d.data.path.includes('Documents')) iconPath = '/icons/document.svg';
+      else if (d.data.path.includes('Pictures')) iconPath = '/icons/picture.svg';
+      else if (d.data.path.includes('Downloads')) iconPath = '/icons/download.svg';
+      else if (d.data.path.includes('Desktop')) iconPath = '/icons/desktop.svg';
       
-      if (d.data.path === '/home') {
-        // Simple house icon
-        iconGroup.append('path')
-          .attr('d', `M ${iconOffset} 5 L 0 ${iconOffset + 5} L ${iconSize/2} 5 L ${iconSize/2} ${iconSize/2 - 2} L ${iconOffset} ${iconSize/2 - 2} Z`)
-          .attr('fill', '#F59E0B')
-          .attr('stroke', '#92400E')
-          .attr('stroke-width', 1.5);
-        
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 8)
-          .attr('y', 5)
-          .attr('width', 8)
-          .attr('height', 10)
-          .attr('fill', '#92400E');
-          
-      } else if (d.data.path === '/tmp') {
-        // Simple trash can icon
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 4)
-          .attr('y', iconOffset + 8)
-          .attr('width', 16)
-          .attr('height', 14)
-          .attr('rx', 1)
-          .attr('fill', '#6B7280')
-          .attr('stroke', '#374151')
-          .attr('stroke-width', 1.5);
-        
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 2)
-          .attr('y', iconOffset + 6)
-          .attr('width', 20)
-          .attr('height', 3)
-          .attr('fill', '#374151');
-        
-        iconGroup.append('line')
-          .attr('x1', iconOffset + 8)
-          .attr('y1', iconOffset + 12)
-          .attr('x2', iconOffset + 8)
-          .attr('y2', iconOffset + 18)
-          .attr('stroke', '#9CA3AF')
-          .attr('stroke-width', 1);
-        
-        iconGroup.append('line')
-          .attr('x1', iconOffset + 12)
-          .attr('y1', iconOffset + 12)
-          .attr('x2', iconOffset + 12)
-          .attr('y2', iconOffset + 18)
-          .attr('stroke', '#9CA3AF')
-          .attr('stroke-width', 1);
-        
-        iconGroup.append('line')
-          .attr('x1', iconOffset + 16)
-          .attr('y1', iconOffset + 12)
-          .attr('x2', iconOffset + 16)
-          .attr('y2', iconOffset + 18)
-          .attr('stroke', '#9CA3AF')
-          .attr('stroke-width', 1);
-          
-      } else if (d.data.path === '/etc') {
-        // Simple gear/config icon
-        iconGroup.append('circle')
-          .attr('cx', iconOffset + 12)
-          .attr('cy', iconOffset + 12)
-          .attr('r', 8)
-          .attr('fill', '#8B5CF6')
-          .attr('stroke', '#6D28D9')
-          .attr('stroke-width', 1.5);
-        
-        iconGroup.append('circle')
-          .attr('cx', iconOffset + 12)
-          .attr('cy', iconOffset + 12)
-          .attr('r', 4)
-          .attr('fill', '#DDD6FE');
-        
-        // Gear teeth
-        for (let i = 0; i < 8; i++) {
-          const angle = (i * Math.PI * 2) / 8;
-          const x1 = iconOffset + 12 + Math.cos(angle) * 6;
-          const y1 = iconOffset + 12 + Math.sin(angle) * 6;
-          const x2 = iconOffset + 12 + Math.cos(angle) * 9;
-          const y2 = iconOffset + 12 + Math.sin(angle) * 9;
-          
-          iconGroup.append('line')
-            .attr('x1', x1)
-            .attr('y1', y1)
-            .attr('x2', x2)
-            .attr('y2', y2)
-            .attr('stroke', '#6D28D9')
-            .attr('stroke-width', 2)
-            .attr('stroke-linecap', 'round');
-        }
-        
-      } else if (d.data.path === '/bin' || d.data.path === '/sbin') {
-        // Simple terminal/binary icon
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 4)
-          .attr('y', iconOffset + 6)
-          .attr('width', 16)
-          .attr('height', 12)
-          .attr('rx', 2)
-          .attr('fill', '#1F2937')
-          .attr('stroke', '#374151')
-          .attr('stroke-width', 1.5);
-        
-        iconGroup.append('text')
-          .attr('x', iconOffset + 12)
-          .attr('y', iconOffset + 14)
-          .attr('text-anchor', 'middle')
-          .attr('fill', '#10B981')
-          .attr('font-family', 'monospace')
-          .attr('font-size', '10px')
-          .attr('font-weight', 'bold')
-          .text('>_');
-          
-      } else if (d.data.path === '/var') {
-        // Simple database/variable icon
-        iconGroup.append('ellipse')
-          .attr('cx', iconOffset + 12)
-          .attr('cy', iconOffset + 8)
-          .attr('rx', 8)
-          .attr('ry', 3)
-          .attr('fill', '#F59E0B')
-          .attr('stroke', '#D97706')
-          .attr('stroke-width', 1.5);
-        
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 4)
-          .attr('y', iconOffset + 8)
-          .attr('width', 16)
-          .attr('height', 8)
-          .attr('fill', '#F59E0B');
-        
-        iconGroup.append('ellipse')
-          .attr('cx', iconOffset + 12)
-          .attr('cy', iconOffset + 16)
-          .attr('rx', 8)
-          .attr('ry', 3)
-          .attr('fill', '#FBBF24')
-          .attr('stroke', '#D97706')
-          .attr('stroke-width', 1.5);
-          
-      } else if (d.data.path === '/usr') {
-        // Simple user/folder icon
-        iconGroup.append('path')
-          .attr('d', `M ${iconOffset + 4} ${iconOffset + 8} L ${iconOffset + 4} ${iconOffset + 18} L ${iconOffset + 20} ${iconOffset + 18} L ${iconOffset + 20} ${iconOffset + 10} L ${iconOffset + 18} ${iconOffset + 8} Z`)
-          .attr('fill', '#3B82F6')
-          .attr('stroke', '#2563EB')
-          .attr('stroke-width', 1.5);
-        
-        iconGroup.append('path')
-          .attr('d', `M ${iconOffset + 4} ${iconOffset + 8} L ${iconOffset + 10} ${iconOffset + 8} L ${iconOffset + 12} ${iconOffset + 10} L ${iconOffset + 18} ${iconOffset + 10}`)
-          .attr('fill', 'none')
-          .attr('stroke', '#2563EB')
-          .attr('stroke-width', 1.5);
-          
-      } else if (d.data.path === '/opt') {
-        // Simple package/box icon
-        iconGroup.append('path')
-          .attr('d', `M ${iconOffset + 4} ${iconOffset + 10} L ${iconOffset + 12} ${iconOffset + 6} L ${iconOffset + 20} ${iconOffset + 10} L ${iconOffset + 20} ${iconOffset + 18} L ${iconOffset + 12} ${iconOffset + 22} L ${iconOffset + 4} ${iconOffset + 18} Z`)
-          .attr('fill', '#10B981')
-          .attr('stroke', '#059669')
-          .attr('stroke-width', 1.5);
-        
-        iconGroup.append('path')
-          .attr('d', `M ${iconOffset + 4} ${iconOffset + 10} L ${iconOffset + 12} ${iconOffset + 14} L ${iconOffset + 20} ${iconOffset + 10}`)
-          .attr('fill', 'none')
-          .attr('stroke', '#059669')
-          .attr('stroke-width', 1.5);
-        
-        iconGroup.append('line')
-          .attr('x1', iconOffset + 12)
-          .attr('y1', iconOffset + 14)
-          .attr('x2', iconOffset + 12)
-          .attr('y2', iconOffset + 22)
-          .attr('stroke', '#059669')
-          .attr('stroke-width', 1.5);
-          
-      } else if (d.data.path.includes('Documents')) {
-        // Simple document icon
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 6)
-          .attr('y', iconOffset + 4)
-          .attr('width', 12)
-          .attr('height', 16)
-          .attr('rx', 1)
-          .attr('fill', '#E5E7EB')
-          .attr('stroke', '#6B7280')
-          .attr('stroke-width', 1.5);
-        
-        iconGroup.append('path')
-          .attr('d', `M ${iconOffset + 12} ${iconOffset + 4} L ${iconOffset + 18} ${iconOffset + 4} L ${iconOffset + 18} ${iconOffset + 10}`)
-          .attr('fill', '#D1D5DB')
-          .attr('stroke', '#6B7280')
-          .attr('stroke-width', 1.5);
-        
-        // Text lines
-        iconGroup.append('line')
-          .attr('x1', iconOffset + 9)
-          .attr('y1', iconOffset + 12)
-          .attr('x2', iconOffset + 15)
-          .attr('y2', iconOffset + 12)
-          .attr('stroke', '#6B7280')
-          .attr('stroke-width', 1);
-        
-        iconGroup.append('line')
-          .attr('x1', iconOffset + 9)
-          .attr('y1', iconOffset + 15)
-          .attr('x2', iconOffset + 15)
-          .attr('y2', iconOffset + 15)
-          .attr('stroke', '#6B7280')
-          .attr('stroke-width', 1);
-          
-      } else if (d.data.path.includes('Pictures')) {
-        // Simple picture frame icon
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 4)
-          .attr('y', iconOffset + 6)
-          .attr('width', 16)
-          .attr('height', 12)
-          .attr('rx', 1)
-          .attr('fill', '#DBEAFE')
-          .attr('stroke', '#3B82F6')
-          .attr('stroke-width', 1.5);
-        
-        // Mountain
-        iconGroup.append('path')
-          .attr('d', `M ${iconOffset + 4} ${iconOffset + 18} L ${iconOffset + 10} ${iconOffset + 10} L ${iconOffset + 14} ${iconOffset + 14} L ${iconOffset + 20} ${iconOffset + 8} L ${iconOffset + 20} ${iconOffset + 18} Z`)
-          .attr('fill', '#60A5FA');
-        
-        // Sun
-        iconGroup.append('circle')
-          .attr('cx', iconOffset + 15)
-          .attr('cy', iconOffset + 10)
-          .attr('r', 2)
-          .attr('fill', '#FDE047');
-          
-      } else if (d.data.path.includes('Downloads')) {
-        // Simple download arrow icon
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 4)
-          .attr('y', iconOffset + 14)
-          .attr('width', 16)
-          .attr('height', 3)
-          .attr('fill', '#10B981')
-          .attr('stroke', '#059669')
-          .attr('stroke-width', 1);
-        
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 11)
-          .attr('y', iconOffset + 4)
-          .attr('width', 2)
-          .attr('height', 10)
-          .attr('fill', '#10B981');
-        
-        iconGroup.append('path')
-          .attr('d', `M ${iconOffset + 8} ${iconOffset + 10} L ${iconOffset + 12} ${iconOffset + 14} L ${iconOffset + 16} ${iconOffset + 10}`)
-          .attr('fill', 'none')
-          .attr('stroke', '#10B981')
-          .attr('stroke-width', 2)
-          .attr('stroke-linecap', 'round')
-          .attr('stroke-linejoin', 'round');
-          
-      } else if (d.data.path.includes('Desktop')) {
-        // Simple monitor icon
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 3)
-          .attr('y', iconOffset + 5)
-          .attr('width', 18)
-          .attr('height', 12)
-          .attr('rx', 1)
-          .attr('fill', '#1F2937')
-          .attr('stroke', '#111827')
-          .attr('stroke-width', 1.5);
-        
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 5)
-          .attr('y', iconOffset + 7)
-          .attr('width', 14)
-          .attr('height', 8)
-          .attr('fill', '#60A5FA');
-        
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 10)
-          .attr('y', iconOffset + 17)
-          .attr('width', 4)
-          .attr('height', 3)
-          .attr('fill', '#374151');
-        
-        iconGroup.append('rect')
-          .attr('x', iconOffset + 7)
-          .attr('y', iconOffset + 20)
-          .attr('width', 10)
-          .attr('height', 2)
-          .attr('rx', 1)
-          .attr('fill', '#374151');
-      }
-      
-      // Add subtle animation to icons
-      if (iconGroup.node()?.hasChildNodes()) {
-        iconGroup
+      if (iconPath) {
+        const iconSize = 24;
+        nodeEl.append('image')
+          .attr('class', 'directory-icon')
+          .attr('xlink:href', iconPath)
+          .attr('width', iconSize)
+          .attr('height', iconSize)
+          .attr('x', -iconSize / 2)
+          .attr('y', -iconSize / 2)
+          .style('pointer-events', 'none')
           .style('opacity', 0.8)
           .on('mouseover', function() {
             d3.select(this)
