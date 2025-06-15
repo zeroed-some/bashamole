@@ -92,7 +92,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
   const LABEL_CONFIG = {
     fontSize: 14,
     fontWeight: { base: '500', player: '700' },
-    offset: { parent: -32, leaf: 38 },
+    offset: { parent: -32, leaf: 40 },
     colors: { player: '#93C5FD', regular: '#E5E7EB' },
     textShadow: '0 0 4px rgba(0,0,0,0.8)'
   };

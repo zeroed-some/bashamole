@@ -246,12 +246,19 @@ const Game: React.FC = () => {
       </div>
 
       {/* Floating Terminal - Top Left */}
-      <div className={`absolute top-4 left-4 bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-2xl border border-gray-700 transition-all duration-300 z-30 ${
-        terminalMinimized ? 'w-80' : 'w-[500px]'
+      <div className={`absolute top-4 left-4 bg-gray-900 rounded-lg shadow-2xl border border-gray-800 transition-all duration-300 z-30 ${
+        terminalMinimized ? 'w-80' : 'w-[700px]'
       }`}>
         {/* Terminal Header */}
-        <div className="flex items-center justify-between bg-gray-700 px-4 py-2 rounded-t-lg">
-          <h3 className="text-sm font-semibold text-gray-300">Terminal</h3>
+        <div className="flex items-center justify-between bg-gray-800 px-4 py-2 rounded-t-lg border-b border-gray-700">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            </div>
+            <h3 className="text-sm font-medium text-gray-300 ml-2">bash</h3>
+          </div>
           <button
             onClick={() => setTerminalMinimized(!terminalMinimized)}
             className="text-gray-400 hover:text-white transition"
@@ -262,52 +269,68 @@ const Game: React.FC = () => {
 
         {/* Terminal Content */}
         {!terminalMinimized && (
-          <>
-            <div 
-              ref={terminalRef}
-              className="bg-black text-green-400 p-3 font-mono text-xs h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700"
-            >
-              {commandHistory.map((entry, index) => (
-                <div key={index} className="mb-2">
-                  <div className="text-gray-400">
-                    {entry.command.startsWith('Game started!') ? (
-                      <span className="text-yellow-400">{entry.command}</span>
-                    ) : (
-                      <>$ {entry.command}</>
-                    )}
-                  </div>
-                  <div className={entry.success ? 'text-green-400' : 'text-red-400'}>
+          <div 
+            ref={terminalRef}
+            className="bg-black p-4 font-mono text-base h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700"
+            onClick={() => inputRef.current?.focus()}
+          >
+            {commandHistory.map((entry, index) => (
+              <div key={index} className="mb-1">
+                <div className="flex items-start">
+                  <span className="text-green-400">groundskeeper@molehill</span>
+                  <span className="text-gray-400 mx-1">::</span>
+                  <span className="text-blue-400">{entry.command.startsWith('Hunt started!') ? '~' : gameState.tree?.player_location || '~'}</span>
+                  <span className="text-gray-400 ml-1">$</span>
+                  <span className={`ml-2 ${entry.command.startsWith('Hunt started!') ? 'text-yellow-400' : 'text-gray-300'}`}>
+                    {entry.command.startsWith('Hunt started!') ? '' : entry.command}
+                  </span>
+                </div>
+                {entry.output && (
+                  <div className={`${entry.success ? 'text-gray-300' : 'text-red-400'} ml-0 mt-1`}>
                     {entry.output.split('\n').map((line, i) => (
-                      <div key={i} className="ml-2">{line}</div>
+                      <div key={i}>{line}</div>
                     ))}
                   </div>
-                </div>
-              ))}
-            </div>
-            
-            <form onSubmit={handleSubmit} className="border-t border-gray-700">
-              <div className="flex bg-gray-900">
-                <span className="bg-gray-800 px-3 py-2 text-green-400 font-mono text-sm">$</span>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={command}
-                  onChange={(e) => setCommand(e.target.value)}
-                  disabled={executing || gameState.tree.is_completed}
-                  className="flex-1 px-3 py-2 bg-gray-900 text-green-400 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono placeholder-gray-600"
-                  placeholder="cd, ls, pwd, help, killall moles"
-                  autoFocus
-                />
-                <button
-                  type="submit"
-                  disabled={executing || gameState.tree.is_completed}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 transition"
-                >
-                  {executing ? '...' : 'Run'}
-                </button>
+                )}
               </div>
-            </form>
-          </>
+            ))}
+            
+            {/* Current input line */}
+            <div className="flex items-start">
+              <span className="text-green-400">groundskeeper@molehill</span>
+              <span className="text-gray-400 mx-1">::</span>
+              <span className="text-blue-400">{gameState.tree?.player_location || '~'}</span>
+              <span className="text-gray-400 ml-1">$</span>
+              <form onSubmit={handleSubmit} className="flex-1 ml-2">
+                <div className="relative">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={command}
+                    onChange={(e) => setCommand(e.target.value)}
+                    disabled={executing || gameState.tree?.is_completed}
+                    className="w-full bg-transparent text-gray-300 outline-none caret-transparent"
+                    placeholder=""
+                    autoFocus
+                    spellCheck={false}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                  />
+                  {/* Blinking cursor */}
+                  <span 
+                    className="absolute text-gray-300 pointer-events-none"
+                    style={{ 
+                      left: `${command.length * 0.6}em`,
+                      animation: 'blink 1s step-end infinite'
+                    }}
+                  >
+                    _
+                  </span>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
       </div>
 

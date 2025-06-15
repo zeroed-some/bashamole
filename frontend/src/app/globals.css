@@ -46,3 +46,9 @@ body {
 .scrollbar-thumb-gray-700::-webkit-scrollbar-thumb:hover {
   background-color: #4b5563;
 }
+
+/* Terminal cursor blink animation */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
