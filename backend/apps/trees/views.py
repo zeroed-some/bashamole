@@ -25,7 +25,7 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                 {
                     "command": "cd <directory>",
                     "description": "Change to specified directory",
-                    "examples": ["cd projects", "cd /home/alice", "cd .."]
+                    "examples": ["cd projects", "cd /home/sarah", "cd .."]
                 },
                 {
                     "command": "cd",
