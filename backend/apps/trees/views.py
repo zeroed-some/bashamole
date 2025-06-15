@@ -245,6 +245,85 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                 response_data['output'] = ''
             response_data['success'] = True
         
+        elif cmd == 'tree':
+            # Parse options
+            show_all = '-a' in parts
+            max_depth = 3  # Default depth
+            
+            # Check for -L option
+            if '-L' in parts:
+                try:
+                    depth_index = parts.index('-L') + 1
+                    if depth_index < len(parts):
+                        max_depth = int(parts[depth_index])
+                        max_depth = min(max(max_depth, 1), 5)  # Limit between 1-5
+                except (ValueError, IndexError):
+                    pass
+            
+            try:
+                current_dir = DirectoryNode.objects.get(
+                    tree=tree, 
+                    path=tree.player_location
+                )
+                
+                # Build tree output
+                output_lines = [tree.player_location]
+                
+                def build_tree_output(node, prefix="", is_last=True, depth=0):
+                    if depth >= max_depth:
+                        return
+                    
+                    children = list(node.get_contents().order_by('name'))
+                    
+                    for i, child in enumerate(children):
+                        is_last_child = i == len(children) - 1
+                        
+                        # Determine if this directory contains the mole
+                        has_mole_in_subtree = False
+                        if child.path == tree.mole_location:
+                            has_mole_in_subtree = True
+                        else:
+                            # Check if mole is in any subdirectory
+                            all_descendants = DirectoryNode.objects.filter(
+                                tree=tree,
+                                path__startswith=child.path + '/'
+                            )
+                            if any(d.path == tree.mole_location for d in all_descendants):
+                                has_mole_in_subtree = True
+                        
+                        # Build the tree branch characters
+                        connector = "└── " if is_last_child else "├── "
+                        
+                        # Format the directory name
+                        if has_mole_in_subtree:
+                            # Use X to indicate mole presence
+                            dir_display = f"[X] {child.name}"
+                        else:
+                            dir_display = child.name
+                        
+                        output_lines.append(f"{prefix}{connector}{dir_display}")
+                        
+                        # Recurse into subdirectories
+                        if depth + 1 < max_depth:
+                            extension = "    " if is_last_child else "│   "
+                            build_tree_output(child, prefix + extension, is_last_child, depth + 1)
+                
+                build_tree_output(current_dir)
+                
+                # Add directory count at the end
+                total_shown = len(output_lines) - 1
+                if total_shown == 0:
+                    output_lines.append("\n0 directories")
+                else:
+                    dir_text = "directory" if total_shown == 1 else "directories"
+                    output_lines.append(f"\n{total_shown} {dir_text}")
+                
+                response_data['output'] = '\n'.join(output_lines)
+                response_data['success'] = True
+                
+            except DirectoryNode.DoesNotExist:
+                response_data['output'] = "tree: cannot access directory"
+        
         elif cmd == 'killall' and len(parts) > 1 and parts[1] == 'moles':
             if tree.check_win_condition():
                 tree.is_completed = True
@@ -273,6 +352,7 @@ dirs              - Display directory stack
 ls [-la]          - List directory contents
 pwd               - Print working directory
 echo <text>       - Display text (supports $HOME, $PWD, $OLDPWD)
+tree [-L depth]   - Display directory tree (use -L to limit depth)
 killall moles     - Eliminate moles (when in the same directory)
 help              - Show this help message
 
