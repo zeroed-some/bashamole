@@ -338,6 +338,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     };
 
     // Create quirky curved links
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const linkGenerator = d3.linkVertical<any, any>()
       .x(d => d.x)
       .y(d => d.y)
@@ -493,16 +494,19 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
 
     // Add interactivity
     node.selectAll('.node-shape')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .style('cursor', function(this: any) {
         const d = d3.select(this.parentNode).datum() as d3.HierarchyPointNode<TreeNode>;
         if (d.data.path === playerLocation) return 'default';
         return isAdjacentNode(d.data.path, playerLocation) ? 'pointer' : 'not-allowed';
       })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .style('opacity', function(this: any) {
         const d = d3.select(this.parentNode).datum() as d3.HierarchyPointNode<TreeNode>;
         if (d.data.path === playerLocation) return 1;
         return isAdjacentNode(d.data.path, playerLocation) ? 1 : 0.5;
       })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
       .on('mouseover', function(this: any, event: MouseEvent) {
         const d = d3.select(this.parentNode).datum() as d3.HierarchyPointNode<TreeNode>;
         if (d.data.path !== playerLocation && isAdjacentNode(d.data.path, playerLocation)) {
@@ -516,6 +520,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
             .style('filter', 'url(#glow) drop-shadow(0 0 8px rgba(0,0,0,0.4))');
         }
       })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
       .on('mouseout', function(this: any, event: MouseEvent) {
         const d = d3.select(this.parentNode).datum() as d3.HierarchyPointNode<TreeNode>;
         d3.select(this)
@@ -529,6 +534,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
           })
           .style('filter', d.data.path === playerLocation ? 'url(#glow)' : 'url(#drop-shadow)');
       })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
       .on('click', function(this: any, event: MouseEvent) {
         const d = d3.select(this.parentNode).datum() as d3.HierarchyPointNode<TreeNode>;
         if (onNodeClick && d.data.path !== playerLocation && isAdjacentNode(d.data.path, playerLocation)) {
