@@ -98,7 +98,7 @@ export const useGameState = () => {
       setHasPlayedIntro(false);
       
       return response;
-    } catch (error) {
+    } catch {
       setGameState(prev => ({
         ...prev,
         loading: false,

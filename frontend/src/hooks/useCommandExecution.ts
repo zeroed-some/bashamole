@@ -91,7 +91,7 @@ export const useCommandExecution = (
       }
 
       return response;
-    } catch (error) {
+    } catch {
       addToHistory({
         command: cmd,
         output: 'Error: Failed to execute command. Check your connection.',
