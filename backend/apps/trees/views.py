@@ -342,7 +342,7 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
             if remaining <= 5:
                 response_data['timer_warnings'].append({
                     'level': 'CRITICAL',
-                    'message': f'Mole escaping from {tree.mole_location}! ({remaining}s remaining)'
+                    'message': f'Mole escaping! ({remaining}s remaining)'
                 })
             elif remaining <= 15:
                 response_data['timer_warnings'].append({
@@ -352,7 +352,7 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
             elif remaining <= 30:
                 response_data['timer_warnings'].append({
                     'level': 'WARNING',
-                    'message': f'Mole detected at {tree.mole_location}! ({remaining}s remaining)'
+                    'message': f'Mole detected! ({remaining}s remaining)'
                 })
         
         if cmd == 'cd':
