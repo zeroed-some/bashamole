@@ -1,13 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-  <circle cx="12" cy="12" r="8" fill="#8B5CF6" stroke="#6D28D9" stroke-width="1.5"/>
-  <circle cx="12" cy="12" r="4" fill="#DDD6FE"/>
-  <!-- Gear teeth -->
-  <line x1="12" y1="4" x2="12" y2="1" stroke="#6D28D9" stroke-width="2" stroke-linecap="round"/>
-  <line x1="18.66" y1="7.34" x2="20.78" y2="5.22" stroke="#6D28D9" stroke-width="2" stroke-linecap="round"/>
-  <line x1="20" y1="12" x2="23" y2="12" stroke="#6D28D9" stroke-width="2" stroke-linecap="round"/>
-  <line x1="18.66" y1="16.66" x2="20.78" y2="18.78" stroke="#6D28D9" stroke-width="2" stroke-linecap="round"/>
-  <line x1="12" y1="20" x2="12" y2="23" stroke="#6D28D9" stroke-width="2" stroke-linecap="round"/>
-  <line x1="5.34" y1="16.66" x2="3.22" y2="18.78" stroke="#6D28D9" stroke-width="2" stroke-linecap="round"/>
-  <line x1="4" y1="12" x2="1" y2="12" stroke="#6D28D9" stroke-width="2" stroke-linecap="round"/>
-  <line x1="5.34" y1="7.34" x2="3.22" y2="5.22" stroke="#6D28D9" stroke-width="2" stroke-linecap="round"/>
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Proper mechanical gear with many teeth -->
+  <path d="M12 2C11.4 2 10.9 2.5 10.8 3.1L10.5 4.6C9.9 4.8 9.3 5.1 8.8 5.5L7.4 5C6.8 4.8 6.2 5.1 5.9 5.6L4.9 7.4C4.6 7.9 4.7 8.5 5.2 8.9L6.3 9.8C6.2 10.2 6.2 10.6 6.2 11C6.2 11.4 6.2 11.8 6.3 12.2L5.2 13.1C4.7 13.5 4.6 14.1 4.9 14.6L5.9 16.4C6.2 16.9 6.8 17.2 7.4 17L8.8 16.5C9.3 16.9 9.9 17.2 10.5 17.4L10.8 18.9C10.9 19.5 11.4 20 12 20C12.6 20 13.1 19.5 13.2 18.9L13.5 17.4C14.1 17.2 14.7 16.9 15.2 16.5L16.6 17C17.2 17.2 17.8 16.9 18.1 16.4L19.1 14.6C19.4 14.1 19.3 13.5 18.8 13.1L17.7 12.2C17.8 11.8 17.8 11.4 17.8 11C17.8 10.6 17.8 10.2 17.7 9.8L18.8 8.9C19.3 8.5 19.4 7.9 19.1 7.4L18.1 5.6C17.8 5.1 17.2 4.8 16.6 5L15.2 5.5C14.7 5.1 14.1 4.8 13.5 4.6L13.2 3.1C13.1 2.5 12.6 2 12 2Z" 
+        fill="#6B7280"/>
+  
+  <!-- Inner circle (hole) -->
+  <circle cx="12" cy="11" r="3.5" fill="#9CA3AF"/>
+  <circle cx="12" cy="11" r="2.5" fill="#4B5563"/>
 </svg>
