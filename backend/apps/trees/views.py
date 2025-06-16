@@ -363,7 +363,12 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                 response_data['output'] = message if not success else ""
                 response_data['current_path'] = tree.player_location
             else:
-                target = parts[1]
+                # Join all parts after 'cd' to handle paths with spaces
+                target = ' '.join(parts[1:])
+                # Strip trailing slash if present (except for root)
+                if target.endswith('/') and target != '/':
+                    target = target.rstrip('/')
+                
                 success, message = tree.move_player(target)
                 response_data['success'] = success
                 response_data['output'] = message
@@ -383,7 +388,11 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                 else:
                     response_data['output'] = "pushd: no other directory"
             else:
-                target = parts[1]
+                target = ' '.join(parts[1:])
+                # Strip trailing slash if present (except for root)
+                if target.endswith('/') and target != '/':
+                    target = target.rstrip('/')
+                
                 success, message = tree.push_directory(target)
                 response_data['success'] = success
                 response_data['output'] = message

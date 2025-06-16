@@ -483,6 +483,9 @@ class FileSystemTree(models.Model):
     
     def resolve_path(self, path):
         """Resolve a path that may contain ~ or be relative"""
+        if path.endswith('/') and path != '/':
+            path = path.rstrip('/')
+
         if path == "~":
             return self.home_directory
         elif path.startswith("~/"):
@@ -501,6 +504,9 @@ class FileSystemTree(models.Model):
     
     def normalize_path(self, path):
         """Normalize a path by resolving .. and . components"""
+        if path.endswith('/') and path != '/':
+            path = path.rstrip('/')
+            
         parts = path.split('/')
         resolved = []
         
