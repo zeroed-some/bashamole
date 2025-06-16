@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import TreeVisualizer from './TreeVisualizer';
+import TimerDisplay from './TimerDisplay';
 import { gameApi, FileSystemTree, FHSDirectory, CommandReferenceResponse, MoleDirection, TreeNode } from '@/lib/api';
 
 interface CommandHistoryEntry {
@@ -92,9 +93,15 @@ const Game: React.FC = () => {
         locationContext = "You've been placed somewhere in the filesystem. ";
       }
       
+      // Add timer info to starting message
+      let timerInfo = '';
+      if (response.initial_timer && response.timer_reason) {
+        timerInfo = `\nTimer: ${response.initial_timer}s (mole is ${response.timer_reason})`;
+      }
+      
       setCommandHistory([{
         command: 'Hunt started!',
-        output: `${response.mole_hint}\n${locationContext}Your home directory is ${homeDir}.\nUse 'pwd' to see where you are, 'cd ~' to go home.\nType "help" for available commands.`,
+        output: `${response.mole_hint}\n${locationContext}Your home directory is ${homeDir}.\nUse 'pwd' to see where you are, 'cd ~' to go home.${timerInfo}\nType "help" for available commands.`,
         success: true,
       }]);
       setHints([]);
@@ -160,10 +167,21 @@ const Game: React.FC = () => {
         gameState.sessionId || undefined
       );
 
+      // Build output with timer warnings
+      let fullOutput = response.output;
+      
+      // Add timer warnings if present
+      if (response.timer_warnings && response.timer_warnings.length > 0) {
+        const warnings = response.timer_warnings.map(w => 
+          `⚠️ ${w.level}: ${w.message}`
+        ).join('\n');
+        fullOutput = warnings + (fullOutput ? '\n' + fullOutput : '');
+      }
+
       // Update command history
       setCommandHistory(prev => [...prev, {
         command: cmd,
-        output: response.output,
+        output: fullOutput,
         success: response.success,
       }]);
 
@@ -225,6 +243,11 @@ const Game: React.FC = () => {
         // Update score and moles killed
         if (response.score !== undefined) setScore(response.score);
         if (response.moles_killed !== undefined) setMolesKilled(response.moles_killed);
+        
+        // Format the output to include timer info on new line
+        if (response.timer_reason && !response.output.includes('New mole detected')) {
+          response.output += `\nNew mole detected ${response.timer_reason}!`;
+        }
       }
 
       // Legacy: Check if game won (for old backend compatibility)
@@ -417,15 +440,76 @@ const Game: React.FC = () => {
         </div>
       )}
 
-      {/* Score Display - Top Right */}
-      {molesKilled > 0 && (
-        <div className="absolute top-4 right-4 bg-black/80 backdrop-blur-sm border border-green-500 rounded-lg p-3 shadow-2xl z-30">
-          <div className="text-green-400 font-terminal text-sm">
-            <div>Score: {score}</div>
-            <div>Moles: {molesKilled}</div>
+      {/* Score and Timer Display - Top Right */}
+      <div className="absolute top-4 right-4 flex flex-col gap-3 z-30">
+        {/* Timer */}
+        <TimerDisplay 
+          gameTreeId={gameState.tree?.id || null}
+          sessionId={gameState.sessionId}
+          onTimerExpire={async () => {
+            // Handle timer expiration - check for mole escape
+            if (gameState.tree) {
+              try {
+                const response = await gameApi.checkTimer(gameState.tree.id, gameState.sessionId || undefined);
+                if (response.mole_escaped) {
+                  // Build the escape message
+                  let escapeMessage = response.message || 'The mole escaped!';
+                  
+                  // Add distance info for new mole if available
+                  if (response.escape_data?.timer_reason) {
+                    escapeMessage += `\nNew mole detected ${response.escape_data.timer_reason}!`;
+                  }
+                  
+                  // Update command history with escape message
+                  setCommandHistory(prev => [...prev, {
+                    command: 'Mole escaped!',
+                    output: escapeMessage,
+                    success: false,
+                  }]);
+                  
+                  // Update mole direction if provided
+                  if (response.escape_data?.new_location) {
+                    // Update tree to show new mole location
+                    const treeWithNewMole = updateTreeDataToShowMole(
+                      removeMoleFromTree(gameState.tree.tree_data),
+                      response.escape_data.new_location
+                    );
+                    
+                    setGameState(prev => ({
+                      ...prev,
+                      tree: prev.tree ? {
+                        ...prev.tree,
+                        tree_data: treeWithNewMole,
+                      } : null,
+                    }));
+                    
+                    // Show mole direction indicator if provided
+                    if (response.escape_data?.mole_direction) {
+                      setMoleDirection(response.escape_data.mole_direction);
+                      // Hide direction indicator after 5 seconds
+                      setTimeout(() => {
+                        setMoleDirection(null);
+                      }, 5000);
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error('Failed to check timer:', error);
+              }
+            }
+          }}
+        />
+        
+        {/* Score */}
+        {molesKilled > 0 && (
+          <div className="bg-black/80 backdrop-blur-sm border border-green-500 rounded-lg p-3 shadow-2xl">
+            <div className="text-green-400 font-terminal text-sm">
+              <div>Score: {score}</div>
+              <div>Moles: {molesKilled}</div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Floating Terminal - Top Left */}
       <div className={`absolute top-4 left-4 ${terminalColors.frame} rounded-lg shadow-2xl border transition-all duration-300 z-30 ${
@@ -487,9 +571,28 @@ const Game: React.FC = () => {
                 </div>
                 {entry.output && (
                   <div className={`${entry.success ? 'text-gray-300' : 'text-red-400'} ml-0 mt-1 font-terminal whitespace-pre-wrap`}>
-                    {entry.output.split('\n').map((line, i) => (
-                      <div key={i}>{line}</div>
-                    ))}
+                    {entry.output.split('\n').map((line, i) => {
+                      // Special coloring for mole detection messages
+                      let lineClass = '';
+                      if (line.includes('New mole detected')) {
+                        lineClass = 'text-yellow-400';
+                      } else if (line.includes('⚠️')) {
+                        // Timer warnings
+                        if (line.includes('CRITICAL')) {
+                          lineClass = 'text-red-500';
+                        } else if (line.includes('ALERT')) {
+                          lineClass = 'text-orange-400';
+                        } else if (line.includes('WARNING')) {
+                          lineClass = 'text-yellow-400';
+                        }
+                      }
+                      
+                      return (
+                        <div key={i} className={lineClass || ''}>
+                          {line}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
