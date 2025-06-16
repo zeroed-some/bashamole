@@ -95,6 +95,69 @@ export interface CommandReferenceResponse {
   special_paths: SpecialPath[];
 }
 
+export interface TimerWarning {
+  level: string;
+  message: string;
+}
+
+export interface CommandResponse {
+  command: string;
+  success: boolean;
+  output: string;
+  current_path: string;
+  game_won?: boolean;
+  mole_spawned?: boolean;
+  mole_direction?: MoleDirection | null;
+  score?: number;
+  moles_killed?: number;
+  new_mole_location?: string;
+  timer_remaining?: number;
+  timer_warnings?: TimerWarning[];
+  new_timer?: number;
+  timer_reason?: string;
+  timer_distance?: number;
+}
+
+export interface TimerStatusResponse {
+  remaining: number;
+  total: number;
+  percentage: number;
+  warning_level: string | null;
+  expired: boolean;
+  paused: boolean;
+}
+
+export interface EscapeData {
+  escaped: boolean;
+  old_location: string;
+  new_location: string;
+  total_escapes: number;
+  new_timer: number;
+  timer_reason: string;
+  distance: number;
+  mole_direction?: MoleDirection | null;
+}
+
+export interface CheckTimerResponse {
+  timer_remaining: number;
+  timer_expired: boolean;
+  mole_location: string;
+  timer_paused: boolean;
+  mole_escaped?: boolean;
+  escape_data?: EscapeData;
+  message?: string;
+}
+
+export interface GameCreationResponse {
+  tree: FileSystemTree;
+  session_id: number;
+  mole_hint: string;
+  home_directory: string;
+  initial_timer?: number;
+  timer_reason?: string;
+  timer_distance?: number;
+}
+
 export const gameApi = {
   createGame: async (playerName: string = 'Anonymous'): Promise<GameCreationResponse> => {
     const response = await api.post('/trees/filesystem-trees/create_game/', {
@@ -134,6 +197,18 @@ export const gameApi = {
 
   getCommandReference: async (): Promise<CommandReferenceResponse> => {
     const response = await api.get('/trees/filesystem-trees/command_reference/');
+    return response.data;
+  },
+
+    getTimerStatus: async (treeId: number): Promise<TimerStatusResponse> => {
+    const response = await api.get(`/trees/filesystem-trees/${treeId}/timer_status/`);
+    return response.data;
+  },
+
+  checkTimer: async (treeId: number, sessionId?: number): Promise<CheckTimerResponse> => {
+    const url = `/trees/filesystem-trees/${treeId}/check_timer/`;
+    const params = sessionId ? `?session_id=${sessionId}` : '';
+    const response = await api.get(url + params);
     return response.data;
   },
 };

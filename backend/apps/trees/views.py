@@ -157,6 +157,20 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
         tree = FileSystemTree.objects.create(name=tree_name)
         tree.generate_tree(max_depth=max_depth, directories_per_level=dirs_per_level)
         
+        # Get initial timer info
+        initial_timer = tree.default_mole_timer
+        timer_distance = tree.calculate_path_distance(tree.player_location, tree.mole_location)
+        
+        # Determine timer reason
+        if timer_distance <= 1:
+            timer_reason = "nearby"
+        elif timer_distance <= 3:
+            timer_reason = "close"
+        elif timer_distance <= 5:
+            timer_reason = "moderate distance"
+        else:
+            timer_reason = "far away"
+        
         # Create game session
         player_name = request.data.get('player_name', 'Anonymous')
         session = GameSession.objects.create(
@@ -169,7 +183,10 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
             'tree': serializer.data,
             'session_id': session.id,
             'mole_hint': f"The mole is hiding somewhere in the filesystem!",
-            'home_directory': tree.home_directory
+            'home_directory': tree.home_directory,
+            'initial_timer': initial_timer,
+            'timer_reason': timer_reason,
+            'timer_distance': timer_distance
         }, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['get'])
@@ -194,6 +211,80 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                 {'error': 'Current directory not found'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
+    
+    @action(detail=True, methods=['get'])
+    def check_timer(self, request, pk=None):
+        """Check the current mole timer status"""
+        tree = self.get_object()
+        
+        # Check if timer expired
+        expired, remaining = tree.check_mole_timer()
+        
+        response_data = {
+            'timer_remaining': remaining,
+            'timer_expired': expired,
+            'mole_location': tree.mole_location,
+            'timer_paused': tree.timer_paused
+        }
+        
+        # Handle escape if timer expired
+        if expired:
+            escape_data = tree.handle_mole_escape()
+            if escape_data:
+                
+                mole_direction = tree.get_mole_direction()
+
+                escape_data['mole_direction'] = mole_direction
+
+                response_data.update({
+                    'mole_escaped': True,
+                    'escape_data': escape_data,
+                    'mole_direction': mole_direction,  # Add this line
+                    'message': f"The mole escaped from {escape_data['old_location']}! A new mole appeared!"
+                })
+
+                # Update session stats
+                session_id = request.query_params.get('session_id')
+                if session_id:
+                    try:
+                        session = GameSession.objects.get(id=session_id, tree=tree)
+                        session.moles_escaped += 1
+                        session.save()
+                    except GameSession.DoesNotExist:
+                        pass
+                
+                response_data.update({
+                    'mole_escaped': True,
+                    'escape_data': escape_data,
+                    'message': f"The mole escaped from {escape_data['old_location']}! A new mole appeared!"
+                })
+        
+        return Response(response_data)
+    
+    @action(detail=True, methods=['get'])
+    def timer_status(self, request, pk=None):
+        """Get detailed timer status for UI updates"""
+        tree = self.get_object()
+        expired, remaining = tree.check_mole_timer()
+        
+        # Calculate warning level
+        warning_level = None
+        if not expired and remaining > 0:
+            if remaining <= 5:
+                warning_level = 'critical'
+            elif remaining <= 15:
+                warning_level = 'alert'
+            elif remaining <= 30:
+                warning_level = 'warning'
+        
+        return Response({
+            'remaining': remaining,
+            'total': tree.default_mole_timer,
+            'percentage': (remaining / tree.default_mole_timer * 100) if tree.default_mole_timer > 0 else 0,
+            'warning_level': warning_level,
+            'expired': expired,
+            'paused': tree.timer_paused
+        })
     
     @action(detail=True, methods=['post'])
     def execute_command(self, request, pk=None):
@@ -224,6 +315,9 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
             except GameSession.DoesNotExist:
                 pass
         
+        # Check timer before executing command
+        expired, remaining = tree.check_mole_timer()
+        
         # Parse and execute command
         parts = command.split()
         cmd = parts[0] if parts else ""
@@ -235,8 +329,31 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
             'current_path': tree.player_location,
             'mole_spawned': False,
             'mole_direction': None,
-            'score': 0
+            'score': 0,
+            'timer_remaining': remaining,
+            'timer_warnings': [],
+            'new_timer': None,
+            'timer_reason': None,
+            'timer_distance': None
         }
+        
+        # Add timer warnings to output
+        if not expired and remaining > 0:
+            if remaining <= 5:
+                response_data['timer_warnings'].append({
+                    'level': 'CRITICAL',
+                    'message': f'Mole escaping from {tree.mole_location}! ({remaining}s remaining)'
+                })
+            elif remaining <= 15:
+                response_data['timer_warnings'].append({
+                    'level': 'ALERT',
+                    'message': f'Mole burrowing soon! ({remaining}s remaining)'
+                })
+            elif remaining <= 30:
+                response_data['timer_warnings'].append({
+                    'level': 'WARNING',
+                    'message': f'Mole detected at {tree.mole_location}! ({remaining}s remaining)'
+                })
         
         if cmd == 'cd':
             if len(parts) < 2:
@@ -440,6 +557,9 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
         
         elif cmd == 'killall' and len(parts) > 1 and parts[1] == 'moles':
             if tree.check_win_condition():
+                # Check if killed before timer expired
+                expired, remaining = tree.check_mole_timer()
+                
                 # Track old mole location for stats
                 old_mole_location = tree.mole_location
                 
@@ -467,15 +587,26 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                     response_data['score'] = session.calculate_score()
                 
                 # Spawn new mole
-                if tree.spawn_new_mole():
+                success, new_timer, timer_reason, timer_distance = tree.spawn_new_mole()
+                if success:
                     mole_direction = tree.get_mole_direction()
                     
-                    response_data['output'] = f"🎉 You eliminated the mole! (Total moles killed: {tree.moles_killed})\n🐭 A new mole has appeared somewhere in the filesystem!"
+                    # Include timer info in message
+                    timer_msg = f"Timer: {new_timer}s (mole is {timer_reason})"
+                    
+                    if not expired:
+                        response_data['output'] = f"🎉 You eliminated the mole with {remaining}s to spare! (Total moles killed: {tree.moles_killed})\n🐭 A new mole has appeared! {timer_msg}"
+                    else:
+                        response_data['output'] = f"🎉 You eliminated the mole! (Total moles killed: {tree.moles_killed})\n🐭 A new mole has appeared! {timer_msg}"
+                    
                     response_data['success'] = True
                     response_data['mole_spawned'] = True
                     response_data['mole_direction'] = mole_direction
                     response_data['moles_killed'] = tree.moles_killed
-                    response_data['new_mole_location'] = tree.mole_location  # Add this!
+                    response_data['new_mole_location'] = tree.mole_location
+                    response_data['new_timer'] = new_timer
+                    response_data['timer_reason'] = timer_reason
+                    response_data['timer_distance'] = timer_distance
                 else:
                     response_data['output'] = "🎉 You eliminated the mole! Unable to spawn new mole."
                     response_data['success'] = True
