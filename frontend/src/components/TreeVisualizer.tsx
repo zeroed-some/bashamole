@@ -5,6 +5,90 @@ import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { TreeNode } from '@/lib/api';
 
+// Quirky visual configuration - moved outside component to avoid dependency issues
+const NODE_CONFIG = {
+  sizes: {
+    root: { base: 30, hover: 35 },
+    player: { base: 26, hover: 28 },
+    regular: { base: 20, hover: 24 },
+    mole: { base: 22, hover: 26 }
+  },
+  colors: {
+    player: { 
+      fill: '#60A5FA', 
+      stroke: '#3B82F6',
+      glow: '#93C5FD'
+    },
+    mole: { 
+      fill: '#F87171', 
+      stroke: '#DC2626',
+      pulse: '#FCA5A5'
+    },
+    fhs: { 
+      fill: '#C084FC', 
+      stroke: '#9333EA',
+      pattern: 'fhs-pattern'
+    },
+    regular: { 
+      fill: '#86EFAC', 
+      stroke: '#22C55E',
+      hover: '#BBF7D0'
+    },
+    root: {
+      fill: '#FDE047',
+      stroke: '#EAB308'
+    }
+  },
+  strokeWidth: { base: 3, hover: 4 },
+  wobble: {
+    amount: 2,
+    speed: 3000
+  }
+};
+
+const ICON_CONFIG = {
+  size: 40,
+  offset: -20,
+  paths: {
+    player: '/player.svg',
+    mole: '/mole.svg'
+  }
+};
+
+const ANIMATION_CONFIG = {
+  nodeHover: { duration: 300 },
+  navigation: { duration: 750, easing: d3.easeCubicInOut },
+  intro: {
+    phases: [
+      { duration: 1000 },
+      { duration: 2000, easing: d3.easeCubicInOut },
+      { duration: 1000 },
+      { duration: 1500, easing: d3.easeCubicInOut },
+      { duration: 800 },
+      { duration: 1200, easing: d3.easeCubicInOut },
+      { duration: 1500, easing: d3.easeCubicInOut }
+    ]
+  },
+  celebration: { duration: '1s', repeatCount: 'indefinite' },
+  pulse: { duration: '2s', repeatCount: 'indefinite' }
+};
+
+const PARTICLE_CONFIG = {
+  count: 30,
+  size: { min: 2, max: 6 },
+  colors: ['#FDE047', '#A78BFA', '#F87171', '#60A5FA', '#86EFAC'],
+  speed: { min: 20000, max: 40000 }
+};
+
+const ZOOM_CONFIG = {
+  scaleExtent: [0.1, 3] as [number, number],
+  defaultScale: 2.5,
+  fullTreeScale: 0.8,
+  partialTreeScale: 1.5,
+  treePadding: 200,
+  nudgeOffset: { x: 0.15, y: 0.2 }
+};
+
 interface TreeVisualizerProps {
   treeData: TreeNode;
   playerLocation: string;
@@ -26,74 +110,6 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const previousLocationRef = useRef<string | null>(null);
 
-  // Quirky visual configuration
-  const NODE_CONFIG = {
-    sizes: {
-      root: { base: 30, hover: 35 },
-      player: { base: 26, hover: 28 },
-      regular: { base: 20, hover: 24 },
-      mole: { base: 22, hover: 26 }
-    },
-    colors: {
-      player: { 
-        fill: '#60A5FA', 
-        stroke: '#3B82F6',
-        glow: '#93C5FD'
-      },
-      mole: { 
-        fill: '#F87171', 
-        stroke: '#DC2626',
-        pulse: '#FCA5A5'
-      },
-      fhs: { 
-        fill: '#C084FC', 
-        stroke: '#9333EA',
-        pattern: 'fhs-pattern'
-      },
-      regular: { 
-        fill: '#86EFAC', 
-        stroke: '#22C55E',
-        hover: '#BBF7D0'
-      },
-      root: {
-        fill: '#FDE047',
-        stroke: '#EAB308'
-      }
-    },
-    strokeWidth: { base: 3, hover: 4 },
-    wobble: {
-      amount: 2,
-      speed: 3000
-    }
-  };
-
-  const ICON_CONFIG = {
-    size: 40,
-    offset: -20,
-    paths: {
-      player: '/player.svg',
-      mole: '/mole.svg'
-    }
-  };
-
-  const ANIMATION_CONFIG = {
-    nodeHover: { duration: 300 },
-    navigation: { duration: 750, easing: d3.easeCubicInOut },
-    intro: {
-      phases: [
-        { duration: 1000 },
-        { duration: 2000, easing: d3.easeCubicInOut },
-        { duration: 1000 },
-        { duration: 1500, easing: d3.easeCubicInOut },
-        { duration: 800 },
-        { duration: 1200, easing: d3.easeCubicInOut },
-        { duration: 1500, easing: d3.easeCubicInOut }
-      ]
-    },
-    celebration: { duration: '1s', repeatCount: 'indefinite' },
-    pulse: { duration: '2s', repeatCount: 'indefinite' }
-  };
-
   const LAYOUT_CONFIG = {
     nodeSpacing: 140,
     margin: { top: 120, right: 160, bottom: 120, left: 160 },
@@ -103,15 +119,6 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
       color: isDarkMode ? '#0F172A' : '#FEF3C7',
       opacity: 1
     }
-  };
-
-  const ZOOM_CONFIG = {
-    scaleExtent: [0.1, 3] as [number, number],
-    defaultScale: 2.5,
-    fullTreeScale: 0.8,
-    partialTreeScale: 1.5,
-    treePadding: 200,
-    nudgeOffset: { x: 0.15, y: 0.2 }
   };
 
   const LINK_CONFIG = {
@@ -141,13 +148,6 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     }
   };
 
-  const PARTICLE_CONFIG = {
-    count: 30,
-    size: { min: 2, max: 6 },
-    colors: ['#FDE047', '#A78BFA', '#F87171', '#60A5FA', '#86EFAC'],
-    speed: { min: 20000, max: 40000 }
-  };
-
   const isAnimatingRef = useRef(false);
 
   useEffect(() => {
@@ -170,7 +170,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     const root = d3.hierarchy(treeData);
     
     const levelCounts: { [key: number]: number } = {};
-    root.each(d => {
+    root.each((d) => {
       levelCounts[d.depth] = (levelCounts[d.depth] || 0) + 1;
     });
     const maxNodesAtLevel = Math.max(...Object.values(levelCounts));
@@ -284,7 +284,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
       .size([width - margin.left - margin.right, height - margin.top - margin.bottom])
       .separation((a, b) => {
         const aParentChildCount = a.parent ? (a.parent.children?.length || 0) : 0;
-        const bParentChildCount = b.parent ? (b.parent.children?.length || 0) : 0;
+        // const bParentChildCount = b.parent ? (b.parent.children?.length || 0) : 0;
         
         if (a.parent === b.parent && aParentChildCount > 3) {
           const aIsLeaf = !a.children || a.children.length === 0;
@@ -313,8 +313,8 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     
     // Center the root
     const rootX = width / 2;
-    treeNodes.each(d => {
-      d.x = d.x + (rootX - root.x);
+    treeNodes.each((d) => {
+      d.x = d.x + (rootX - treeNodes.x);
     });
 
     // Helper function to check if a node is adjacent
@@ -357,7 +357,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
       .attr('d', linkGenerator)
       .style('fill', 'none')
       .style('stroke', d => {
-        const targetPath = (d.target as any).data.path;
+        const targetPath = (d.target as d3.HierarchyPointNode<TreeNode>).data.path;
         if (isAdjacentNode(targetPath, playerLocation) || targetPath === playerLocation) {
           return LINK_CONFIG.colors.adjacent;
         }
@@ -365,7 +365,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
       })
       .style('stroke-width', LINK_CONFIG.strokeWidth)
       .style('stroke-dasharray', d => {
-        const targetPath = (d.target as any).data.path;
+        const targetPath = (d.target as d3.HierarchyPointNode<TreeNode>).data.path;
         if (targetPath === playerLocation) return 'none';
         return LINK_CONFIG.dashArray;
       })
@@ -493,15 +493,18 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
 
     // Add interactivity
     node.selectAll('.node-shape')
-      .style('cursor', d => {
+      .style('cursor', function(this: any) {
+        const d = d3.select(this.parentNode).datum() as d3.HierarchyPointNode<TreeNode>;
         if (d.data.path === playerLocation) return 'default';
         return isAdjacentNode(d.data.path, playerLocation) ? 'pointer' : 'not-allowed';
       })
-      .style('opacity', d => {
+      .style('opacity', function(this: any) {
+        const d = d3.select(this.parentNode).datum() as d3.HierarchyPointNode<TreeNode>;
         if (d.data.path === playerLocation) return 1;
         return isAdjacentNode(d.data.path, playerLocation) ? 1 : 0.5;
       })
-      .on('mouseover', function(event, d) {
+      .on('mouseover', function(this: any, event: MouseEvent) {
+        const d = d3.select(this.parentNode).datum() as d3.HierarchyPointNode<TreeNode>;
         if (d.data.path !== playerLocation && isAdjacentNode(d.data.path, playerLocation)) {
           d3.select(this)
             .transition()
@@ -513,7 +516,8 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
             .style('filter', 'url(#glow) drop-shadow(0 0 8px rgba(0,0,0,0.4))');
         }
       })
-      .on('mouseout', function(event, d) {
+      .on('mouseout', function(this: any, event: MouseEvent) {
+        const d = d3.select(this.parentNode).datum() as d3.HierarchyPointNode<TreeNode>;
         d3.select(this)
           .transition()
           .duration(ANIMATION_CONFIG.nodeHover.duration)
@@ -525,7 +529,8 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
           })
           .style('filter', d.data.path === playerLocation ? 'url(#glow)' : 'url(#drop-shadow)');
       })
-      .on('click', (event, d) => {
+      .on('click', function(this: any, event: MouseEvent) {
+        const d = d3.select(this.parentNode).datum() as d3.HierarchyPointNode<TreeNode>;
         if (onNodeClick && d.data.path !== playerLocation && isAdjacentNode(d.data.path, playerLocation)) {
           onNodeClick(d.data.path);
         }
@@ -808,7 +813,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
         svg.call(zoom.transform, playerTransform);
       }
     }
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [treeData, playerLocation, onNodeClick, playIntro, isDarkMode, moleKilled]);
 
   return (

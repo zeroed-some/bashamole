@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import TreeVisualizer from './TreeVisualizer';
 import { gameApi, FileSystemTree, FHSDirectory, CommandReferenceResponse, MoleDirection, TreeNode } from '@/lib/api';
 
@@ -300,6 +301,7 @@ const Game: React.FC = () => {
   // Start game on mount
   useEffect(() => {
     startNewGame();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Mark intro as played after first render
@@ -417,9 +419,11 @@ const Game: React.FC = () => {
           }}
         >
           <div className="bg-red-600/90 backdrop-blur-sm border-2 border-red-400 rounded-lg p-3 shadow-2xl flex items-center gap-2">
-            <img 
+            <Image 
               src="/mole.svg" 
               alt="Mole" 
+              width={32}
+              height={32}
               className="w-8 h-8"
             />
             <div 
