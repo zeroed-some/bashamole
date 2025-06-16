@@ -44,19 +44,6 @@ const Game: React.FC = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Detect system color scheme preference
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    setIsDarkMode(mediaQuery.matches);
-    
-    const handleChange = (e: MediaQueryListEvent) => {
-      setIsDarkMode(e.matches);
-    };
-    
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
-
   // Auto-scroll terminal to bottom
   useEffect(() => {
     if (terminalRef.current) {
@@ -334,23 +321,17 @@ const Game: React.FC = () => {
     return `rotate(${angle}deg)`;
   };
 
-  // Terminal color scheme based on dark/light mode
-  const terminalColors = isDarkMode ? {
+  // Terminal color scheme - always dark mode
+  const terminalColors = {
     frame: 'bg-stone-200 border-stone-300',
     header: 'bg-stone-300 border-stone-400',
     headerText: 'text-stone-900',
     content: 'bg-black',
     closeButton: 'text-stone-700 hover:text-stone-900'
-  } : {
-    frame: 'bg-blue-900 border-blue-800',
-    header: 'bg-blue-800 border-blue-700',
-    headerText: 'text-blue-100',
-    content: 'bg-black',
-    closeButton: 'text-blue-300 hover:text-white'
   };
 
-  // Canvas background color based on dark/light mode
-  const canvasBackground = isDarkMode ? 'bg-gray-900' : 'bg-stone-100';
+  // Canvas background color - always dark mode
+  const canvasBackground = 'bg-gray-900';
 
   if (gameState.loading) {
     return (
@@ -716,19 +697,19 @@ const Game: React.FC = () => {
       )}
 
       {/* Bottom Game Bar */}
-      <div className={`absolute bottom-0 left-0 right-0 ${isDarkMode ? 'bg-slate-800/90' : 'bg-blue-50/90'} backdrop-blur-sm border-t ${isDarkMode ? 'border-slate-700' : 'border-blue-200'} p-3 z-20`}>
+      <div className="absolute bottom-0 left-0 right-0 bg-slate-800/90 backdrop-blur-sm border-t border-slate-700 p-3 z-20">
         <div className="max-w-7xl mx-auto flex justify-between items-center px-4">
           <div className="flex items-center gap-4">
-            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}><span className='font-terminal bg-gray-200 dark:bg-gray-500 text-red-900 dark:text-red-400 px-0.5 py-0 rounded'>bash</span> amole</h1>
+            <h1 className="text-2xl font-bold text-white"><span className='font-terminal bg-gray-200 dark:bg-gray-500 text-red-900 dark:text-red-400 px-0.5 py-0 rounded'>bash</span> amole</h1>
           </div>
           
           <div className="flex items-center gap-3">
-            <div className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-blue-700'}`}>
+            <div className="text-xs text-slate-400">
               click adjacent nodes or use the terminal
             </div>
             <button
               onClick={startNewGame}
-              className={`px-3 py-1.5 ${isDarkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-blue-200 hover:bg-blue-300'} ${isDarkMode ? 'text-white' : 'text-blue-900'} text-sm rounded transition`}
+              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition"
             >
               New Game
             </button>

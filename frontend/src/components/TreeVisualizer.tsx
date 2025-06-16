@@ -116,7 +116,7 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     viewBoxMultiplier: 2.5,
     minHeight: 1200,
     background: { 
-      color: isDarkMode ? '#0F172A' : '#FEF3C7',
+      color: '#0F172A', // Always dark mode color
       opacity: 1
     }
   };
@@ -126,9 +126,9 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     opacity: 0.6,
     dashArray: '5,5',
     colors: {
-      default: isDarkMode ? '#475569' : '#92400E',
-      hover: isDarkMode ? '#64748B' : '#DC2626',
-      adjacent: isDarkMode ? '#3B82F6' : '#2563EB'
+      default: '#475569', // Always dark mode colors
+      hover: '#64748B',
+      adjacent: '#3B82F6'
     }
   };
 
@@ -137,12 +137,12 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     fontWeight: { base: '600', player: '800' },
     offset: { parent: -38, leaf: 44 },
     colors: { 
-      player: isDarkMode ? '#93C5FD' : '#1E40AF',
-      regular: isDarkMode ? '#E5E7EB' : '#451A03',
+      player: '#93C5FD', // Always dark mode colors
+      regular: '#E5E7EB',
       mole: '#DC2626'
     },
     background: {
-      fill: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(254, 243, 199, 0.9)',
+      fill: 'rgba(15, 23, 42, 0.9)', // Always dark mode background
       padding: { x: 8, y: 4 },
       radius: 4
     }
@@ -238,38 +238,48 @@ const TreeVisualizer: React.FC<TreeVisualizerProps> = ({
     feMerge2.append('feMergeNode').attr('in', 'offsetblur');
     feMerge2.append('feMergeNode').attr('in', 'SourceGraphic');
 
-    // Quirky background with floating particles
-    svg.append('rect')
-      .attr('width', '100%')
-      .attr('height', '100%')
+    // Create a background group that won't be affected by zoom
+    const bgGroup = svg.append('g').attr('class', 'background-group');
+    
+    // Quirky background that covers the entire viewport
+    bgGroup.append('rect')
+      .attr('x', -width)
+      .attr('y', -height)
+      .attr('width', width * 3)
+      .attr('height', height * 3)
       .attr('fill', LAYOUT_CONFIG.background.color)
       .style('opacity', LAYOUT_CONFIG.background.opacity);
 
-    // Add floating background particles
-    const particlesGroup = svg.append('g').attr('class', 'particles');
+    // Add floating background particles across a larger area
+    const particlesGroup = bgGroup.append('g').attr('class', 'particles');
     
-    for (let i = 0; i < PARTICLE_CONFIG.count; i++) {
+    // Create particles across a much larger area to ensure coverage
+    const particleCount = PARTICLE_CONFIG.count * 5;
+    
+    for (let i = 0; i < particleCount; i++) {
+      const startX = (Math.random() - 0.5) * width * 3;
       const particle = particlesGroup.append('circle')
-        .attr('cx', Math.random() * width)
-        .attr('cy', Math.random() * height)
+        .attr('cx', startX)
+        .attr('cy', Math.random() * height * 3 - height)
         .attr('r', Math.random() * (PARTICLE_CONFIG.size.max - PARTICLE_CONFIG.size.min) + PARTICLE_CONFIG.size.min)
         .attr('fill', PARTICLE_CONFIG.colors[Math.floor(Math.random() * PARTICLE_CONFIG.colors.length)])
         .attr('opacity', 0.3);
 
       // Animate particles floating
+      const duration = Math.random() * (PARTICLE_CONFIG.speed.max - PARTICLE_CONFIG.speed.min) + PARTICLE_CONFIG.speed.min;
       particle
         .transition()
-        .duration(Math.random() * (PARTICLE_CONFIG.speed.max - PARTICLE_CONFIG.speed.min) + PARTICLE_CONFIG.speed.min)
+        .duration(duration)
         .ease(d3.easeLinear)
-        .attr('cy', -20)
+        .attr('cy', -height)
         .on('end', function repeat() {
           d3.select(this)
-            .attr('cy', height + 20)
-            .attr('cx', Math.random() * width)
+            .attr('cy', height * 2)
+            .attr('cx', (Math.random() - 0.5) * width * 3)
             .transition()
-            .duration(Math.random() * (PARTICLE_CONFIG.speed.max - PARTICLE_CONFIG.speed.min) + PARTICLE_CONFIG.speed.min)
+            .duration(duration)
             .ease(d3.easeLinear)
-            .attr('cy', -20)
+            .attr('cy', -height)
             .on('end', repeat);
         });
     }
