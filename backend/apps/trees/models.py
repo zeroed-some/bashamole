@@ -28,6 +28,17 @@ class FileSystemTree(models.Model):
     total_commands = models.IntegerField(default=0)
     total_directories_visited = models.IntegerField(default=0)
     
+    # Timer configuration
+    default_mole_timer = models.IntegerField(default=60)  # seconds (will be calculated dynamically)
+    current_mole_timer = models.IntegerField(default=60)  # seconds remaining
+    
+    # Mole spawn timestamp
+    mole_spawned_at = models.DateTimeField(null=True, blank=True)
+    
+    # Timer state
+    timer_paused = models.BooleanField(default=False)
+    timer_expired_count = models.IntegerField(default=0)  # Track escapes
+    
     # Cached tree structure
     tree_data = models.JSONField(null=True, blank=True)
     
@@ -207,9 +218,53 @@ class FileSystemTree(models.Model):
         if candidates.exists():
             mole_dir = random.choice(candidates)
             self.mole_location = mole_dir.path
+            
+            # Calculate initial timer based on starting position
+            timer, reason, distance = self.calculate_mole_timer(
+                self.mole_location,
+                self.player_location if self.player_location else "/home"
+            )
+            
+            # Set initial timer
+            self.mole_spawned_at = timezone.now()
+            self.default_mole_timer = timer
+            self.current_mole_timer = timer
+    
+    def calculate_mole_timer(self, mole_path, player_path):
+        """Calculate timer based on distance between player and mole"""
+        distance = self.calculate_path_distance(player_path, mole_path)
+        
+        # Base timer values based on distance - MORE AGGRESSIVE
+        if distance <= 1:
+            base_timer = 10  # Was 20 - Adjacent mole needs quick action!
+            timer_reason = "nearby"
+        elif distance <= 3:
+            base_timer = 20  # Was 30 - Still close, needs urgency
+            timer_reason = "close"
+        elif distance <= 5:
+            base_timer = 35  # Was 45 - Moderate distance
+            timer_reason = "moderate distance"
+        else:
+            base_timer = 50  # Was 60 - Far away
+            timer_reason = "far away"
+        
+        # Apply difficulty progression (10% reduction per 5 moles, capped at 50% reduction)
+        difficulty_multiplier = 1.0
+        if self.moles_killed >= 5:
+            # Calculate 10% reduction per 5 moles
+            reductions = min(self.moles_killed // 5, 5)  # Cap at 5 reductions (50%)
+            difficulty_multiplier = 1.0 - (0.1 * reductions)
+        
+        # Calculate final timer
+        final_timer = int(base_timer * difficulty_multiplier)
+        
+        # Ensure minimum timer of 10 seconds
+        final_timer = max(final_timer, 10)
+        
+        return final_timer, timer_reason, distance
     
     def spawn_new_mole(self):
-        """Spawn a new mole after the current one is killed"""
+        """Spawn a new mole after the current one is killed or escapes"""
         # Get all possible spawn locations (any directory)
         all_directories = DirectoryNode.objects.filter(tree=self).exclude(path="/")
         
@@ -218,12 +273,57 @@ class FileSystemTree(models.Model):
             new_mole_dir = random.choice(all_directories)
             self.mole_location = new_mole_dir.path
             
+            # Calculate smart timer based on distance
+            timer, reason, distance = self.calculate_mole_timer(
+                self.mole_location, 
+                self.player_location
+            )
+            
+            # Set timer for new mole
+            self.mole_spawned_at = timezone.now()
+            self.default_mole_timer = timer
+            self.current_mole_timer = timer
+            self.timer_paused = False
+            
             # Update the cached tree data
             self.cache_tree()
             self.save()
             
-            return True
-        return False
+            return True, timer, reason, distance
+        return False, None, None, None
+    
+    def check_mole_timer(self):
+        """Check if mole timer has expired"""
+        if not self.mole_spawned_at or self.timer_paused:
+            return False, self.current_mole_timer
+            
+        elapsed = (timezone.now() - self.mole_spawned_at).total_seconds()
+        remaining = max(0, self.default_mole_timer - elapsed)
+        
+        if remaining <= 0:
+            # Mole escaped!
+            return True, 0
+        
+        return False, int(remaining)
+    
+    def handle_mole_escape(self):
+        """Handle when a mole escapes due to timer expiration"""
+        self.timer_expired_count += 1
+        old_location = self.mole_location
+        
+        # Spawn new mole
+        success, timer, reason, distance = self.spawn_new_mole()
+        if success:
+            return {
+                'escaped': True,
+                'old_location': old_location,
+                'new_location': self.mole_location,
+                'total_escapes': self.timer_expired_count,
+                'new_timer': timer,
+                'timer_reason': reason,
+                'distance': distance
+            }
+        return None
     
     def get_mole_direction(self):
         """Get the relative direction from player to mole in the tree structure"""
@@ -536,6 +636,11 @@ class GameSession(models.Model):
     time_taken = models.DurationField(null=True, blank=True)
     moles_killed = models.IntegerField(default=0)
     
+    # Timer stats
+    moles_escaped = models.IntegerField(default=0)
+    fastest_kill_time = models.FloatField(null=True, blank=True)  # seconds
+    average_kill_time = models.FloatField(null=True, blank=True)  # seconds
+    
     # Per-mole tracking
     mole_stats = models.JSONField(default=list)  # List of {mole_number, location, commands, time, distance}
     
@@ -555,7 +660,25 @@ class GameSession(models.Model):
         self.save()
     
     def record_mole_kill(self, mole_location, commands_for_mole, time_for_mole, distance_traveled):
-        """Record statistics for a mole kill"""
+        """Updated to track timer performance"""
+        # Calculate actual time to kill (not total session time)
+        if self.tree.mole_spawned_at:
+            actual_kill_time = (timezone.now() - self.tree.mole_spawned_at).total_seconds()
+            
+            # Update fastest time
+            if self.fastest_kill_time is None or actual_kill_time < self.fastest_kill_time:
+                self.fastest_kill_time = actual_kill_time
+            
+            # Update average (simple running average)
+            if self.average_kill_time is None:
+                self.average_kill_time = actual_kill_time
+            else:
+                total_kills = self.moles_killed + 1
+                self.average_kill_time = (
+                    (self.average_kill_time * self.moles_killed + actual_kill_time) 
+                    / total_kills
+                )
+        
         self.moles_killed += 1
         self.mole_stats.append({
             'mole_number': self.moles_killed,
@@ -567,26 +690,34 @@ class GameSession(models.Model):
         self.save()
     
     def calculate_score(self):
-        """Calculate a score based on performance"""
+        """Updated scoring with timer bonuses"""
         if self.moles_killed == 0:
             return 0
         
-        # Base score per mole
         base_score = 1000
+        score = self.moles_killed * base_score
         
         # Calculate average performance
         total_commands = sum(stat['commands'] for stat in self.mole_stats)
         avg_commands = total_commands / self.moles_killed if self.moles_killed > 0 else 0
         
-        # Score formula (rough draft)
-        # More moles = better
-        # Fewer commands = better
-        # Less time = better (when we implement timing)
-        score = self.moles_killed * base_score
-        
         # Efficiency bonus (fewer commands is better)
         if avg_commands > 0:
             efficiency_multiplier = max(0.5, min(2.0, 10 / avg_commands))
             score *= efficiency_multiplier
+        
+        # Timer bonus - faster kills = more points
+        if self.average_kill_time and self.tree.default_mole_timer:
+            # Bonus for beating the timer by a good margin
+            time_ratio = self.average_kill_time / self.tree.default_mole_timer
+            if time_ratio < 0.5:  # Killed in less than half the time
+                score *= 1.5
+            elif time_ratio < 0.75:  # Killed in less than 3/4 time
+                score *= 1.25
+        
+        # Penalty for escapes
+        if self.moles_escaped > 0:
+            escape_penalty = 0.9 ** self.moles_escaped  # 10% penalty per escape
+            score *= escape_penalty
         
         return int(score)
