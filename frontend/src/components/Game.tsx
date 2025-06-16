@@ -35,7 +35,7 @@ const Game: React.FC = () => {
   const [commandRef, setCommandRef] = useState<CommandReferenceResponse | null>(null);
   const [terminalMinimized, setTerminalMinimized] = useState(true);
   const [hasPlayedIntro, setHasPlayedIntro] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode] = useState(true); // Always dark mode, but keep as state to avoid re-renders
   const [moleKilled, setMoleKilled] = useState(false);
   const [moleDirection, setMoleDirection] = useState<MoleDirection | null>(null);
   const [score, setScore] = useState(0);
