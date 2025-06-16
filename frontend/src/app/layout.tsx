@@ -11,7 +11,7 @@ const spaceMono = Anonymous_Pro({
 });
 
 export const metadata: Metadata = {
-  title: "Bashamole",
+  title: "bashamole",
   description: "A game to practice Unix navigation by hunting moles in the filesystem",
   icons: {
     icon: [
