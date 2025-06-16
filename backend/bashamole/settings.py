@@ -145,6 +145,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
+    "https://bashamole.sh",
+    "https://www.bashamole.sh",
+    "https://bashamole.vercel.app",
 ]
 
 # API settings
