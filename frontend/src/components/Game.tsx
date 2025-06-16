@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
+import React, { useState, useEffect } from 'react';
 import TreeVisualizer from './TreeVisualizer';
-import TimerDisplay from './TimerDisplay';
+import Terminal from './Terminal';
+import HelpModals from './HelpModals';
+import GameStatus from './GameStatus';
 import { gameApi, FileSystemTree, FHSDirectory, CommandReferenceResponse, MoleDirection, TreeNode } from '@/lib/api';
 
 interface CommandHistoryEntry {
@@ -41,23 +42,9 @@ const Game: React.FC = () => {
   const [moleDirection, setMoleDirection] = useState<MoleDirection | null>(null);
   const [score, setScore] = useState(0);
   const [molesKilled, setMolesKilled] = useState(0);
-  
-  const terminalRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll terminal to bottom
-  useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-    }
-  }, [commandHistory]);
-
-  // Auto-focus input after command execution
-  useEffect(() => {
-    if (!executing && inputRef.current && !terminalMinimized) {
-      inputRef.current.focus();
-    }
-  }, [executing, terminalMinimized]);
+  // Canvas background color - always dark mode
+  const canvasBackground = 'bg-gray-900';
 
   // Start a new game
   const startNewGame = async () => {
@@ -308,6 +295,59 @@ const Game: React.FC = () => {
     executeCommand(`cd ${path}`);
   };
 
+  // Handle timer expiration
+  const handleTimerExpire = async () => {
+    if (gameState.tree) {
+      try {
+        const response = await gameApi.checkTimer(gameState.tree.id, gameState.sessionId || undefined);
+        if (response.mole_escaped) {
+          // Build the escape message
+          let escapeMessage = response.message || 'The mole escaped!';
+          
+          // Add distance info for new mole if available
+          if (response.escape_data?.timer_reason) {
+            escapeMessage += `\nNew mole detected ${response.escape_data.timer_reason}!`;
+          }
+          
+          // Update command history with escape message
+          setCommandHistory(prev => [...prev, {
+            command: 'Mole escaped!',
+            output: escapeMessage,
+            success: false,
+          }]);
+          
+          // Update mole direction if provided
+          if (response.escape_data?.new_location) {
+            // Update tree to show new mole location
+            const treeWithNewMole = updateTreeDataToShowMole(
+              removeMoleFromTree(gameState.tree.tree_data),
+              response.escape_data.new_location
+            );
+            
+            setGameState(prev => ({
+              ...prev,
+              tree: prev.tree ? {
+                ...prev.tree,
+                tree_data: treeWithNewMole,
+              } : null,
+            }));
+            
+            // Show mole direction indicator if provided
+            if (response.escape_data?.mole_direction) {
+              setMoleDirection(response.escape_data.mole_direction);
+              // Hide direction indicator after 5 seconds
+              setTimeout(() => {
+                setMoleDirection(null);
+              }, 5000);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check timer:', error);
+      }
+    }
+  };
+
   // Start game on mount
   useEffect(() => {
     startNewGame();
@@ -323,38 +363,6 @@ const Game: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [gameState.tree, hasPlayedIntro]);
-
-  // Get position for mole direction indicator
-  const getMoleIndicatorPosition = (direction: string) => {
-    const positions: Record<string, string> = {
-      'up': 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-full -mt-8',
-      'down': 'bottom-20 left-1/2 -translate-x-1/2',
-      'left': 'top-1/2 left-8 -translate-y-1/2',
-      'right': 'top-1/2 right-8 -translate-y-1/2',
-      'up-left': 'top-20 left-8',
-      'up-right': 'top-20 right-8',
-      'down-left': 'bottom-20 left-8',
-      'down-right': 'bottom-20 right-8',
-    };
-    return positions[direction] || positions['up'];
-  };
-
-  // Get rotation for arrow based on angle
-  const getArrowRotation = (angle: number) => {
-    return `rotate(${angle}deg)`;
-  };
-
-  // Terminal color scheme - always dark mode
-  const terminalColors = {
-    frame: 'bg-stone-200 border-stone-300',
-    header: 'bg-stone-300 border-stone-400',
-    headerText: 'text-stone-900',
-    content: 'bg-black',
-    closeButton: 'text-stone-700 hover:text-stone-900'
-  };
-
-  // Canvas background color - always dark mode
-  const canvasBackground = 'bg-gray-900';
 
   if (gameState.loading) {
     return (
@@ -414,390 +422,43 @@ const Game: React.FC = () => {
         />
       </div>
 
-      {/* Mole Direction Indicator */}
-      {moleDirection && (
-        <div 
-          className={`absolute ${getMoleIndicatorPosition(moleDirection.direction)} z-40 animate-pulse`}
-          style={{
-            animation: 'pulse 2s ease-in-out infinite, fadeIn 0.5s ease-out'
-          }}
-        >
-          <div className="bg-red-600/90 backdrop-blur-sm border-2 border-red-400 rounded-lg p-3 shadow-2xl flex items-center gap-2">
-            <Image 
-              src="/mole.svg" 
-              alt="Mole" 
-              width={32}
-              height={32}
-              className="w-8 h-8"
-            />
-            <div 
-              className="text-white text-2xl"
-              style={{ transform: getArrowRotation(moleDirection.angle) }}
-            >
-              →
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Game Status (Timer, Score, Direction Indicator) */}
+      <GameStatus
+        gameTreeId={gameState.tree?.id || null}
+        sessionId={gameState.sessionId}
+        onTimerExpire={handleTimerExpire}
+        score={score}
+        molesKilled={molesKilled}
+        moleDirection={moleDirection}
+      />
 
-      {/* Score and Timer Display - Top Right */}
-      <div className="absolute top-4 right-4 flex flex-col gap-3 z-30">
-        {/* Timer */}
-        <TimerDisplay 
-          gameTreeId={gameState.tree?.id || null}
-          sessionId={gameState.sessionId}
-          onTimerExpire={async () => {
-            // Handle timer expiration - check for mole escape
-            if (gameState.tree) {
-              try {
-                const response = await gameApi.checkTimer(gameState.tree.id, gameState.sessionId || undefined);
-                if (response.mole_escaped) {
-                  // Build the escape message
-                  let escapeMessage = response.message || 'The mole escaped!';
-                  
-                  // Add distance info for new mole if available
-                  if (response.escape_data?.timer_reason) {
-                    escapeMessage += `\nNew mole detected ${response.escape_data.timer_reason}!`;
-                  }
-                  
-                  // Update command history with escape message
-                  setCommandHistory(prev => [...prev, {
-                    command: 'Mole escaped!',
-                    output: escapeMessage,
-                    success: false,
-                  }]);
-                  
-                  // Update mole direction if provided
-                  if (response.escape_data?.new_location) {
-                    // Update tree to show new mole location
-                    const treeWithNewMole = updateTreeDataToShowMole(
-                      removeMoleFromTree(gameState.tree.tree_data),
-                      response.escape_data.new_location
-                    );
-                    
-                    setGameState(prev => ({
-                      ...prev,
-                      tree: prev.tree ? {
-                        ...prev.tree,
-                        tree_data: treeWithNewMole,
-                      } : null,
-                    }));
-                    
-                    // Show mole direction indicator if provided
-                    if (response.escape_data?.mole_direction) {
-                      setMoleDirection(response.escape_data.mole_direction);
-                      // Hide direction indicator after 5 seconds
-                      setTimeout(() => {
-                        setMoleDirection(null);
-                      }, 5000);
-                    }
-                  }
-                }
-              } catch (error) {
-                console.error('Failed to check timer:', error);
-              }
-            }
-          }}
-        />
-        
-        {/* Score */}
-        {molesKilled > 0 && (
-          <div className="bg-black/80 backdrop-blur-sm border border-green-500 rounded-lg p-3 shadow-2xl">
-            <div className="text-green-400 font-terminal text-sm">
-              <div>Score: {score}</div>
-              <div>Moles: {molesKilled}</div>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Terminal */}
+      <Terminal
+        commandHistory={commandHistory}
+        command={command}
+        setCommand={setCommand}
+        executeCommand={executeCommand}
+        executing={executing}
+        currentPath={gameState.tree?.player_location || '~'}
+        terminalMinimized={terminalMinimized}
+        setTerminalMinimized={setTerminalMinimized}
+        onGetCommandReference={getCommandReference}
+        onGetHints={getHints}
+        onGetFHSReference={getFHSReference}
+      />
 
-      {/* Floating Terminal - Top Left */}
-      <div className={`absolute top-4 left-4 ${terminalColors.frame} rounded-lg shadow-2xl border transition-all duration-300 z-30 ${
-        terminalMinimized ? 'w-80' : 'w-[700px]'
-      }`}>
-        {/* Terminal Header */}
-        <div className={`flex items-center justify-between ${terminalColors.header} px-4 py-2 rounded-t-lg border-b`}>
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1.5">
-              <button
-                onClick={getCommandReference}
-                className="w-3.5 h-3.5 bg-red-500 hover:bg-red-400 rounded-full flex items-center justify-center transition-colors relative"
-                title="Command Reference"
-              >
-                <span className="text-[8px] font-bold text-gray-900 absolute">×</span>
-              </button>
-              <button
-                onClick={getHints}
-                className="w-3.5 h-3.5 bg-yellow-500 hover:bg-yellow-400 rounded-full flex items-center justify-center transition-colors relative"
-                title="Get Hint"
-              >
-                <span className="text-[9px] font-bold text-gray-900 absolute">?</span>
-              </button>
-              <button
-                onClick={getFHSReference}
-                className="w-3.5 h-3.5 bg-green-500 hover:bg-green-400 rounded-full flex items-center justify-center transition-colors relative"
-                title="FHS Directory Reference"
-              >
-                <span className="text-[9px] font-bold text-gray-900 absolute">/</span>
-              </button>
-            </div>
-            <h3 className={`text-sm font-medium ${terminalColors.headerText} ml-2`}>bash</h3>
-          </div>
-          <button
-            onClick={() => setTerminalMinimized(!terminalMinimized)}
-            className={`${terminalColors.closeButton} transition`}
-          >
-            {terminalMinimized ? '▼' : '▲'}
-          </button>
-        </div>
-
-        {/* Terminal Content */}
-        {!terminalMinimized && (
-          <div 
-            ref={terminalRef}
-            className={`${terminalColors.content} p-4 font-terminal text-base h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700`}
-            onClick={() => inputRef.current?.focus()}
-          >
-            {commandHistory.map((entry, index) => (
-              <div key={index} className="mb-1">
-                <div className="flex items-start font-terminal">
-                  <span className="text-green-400">groundskeeper@molehill</span>
-                  <span className="text-gray-400 mx-1">::</span>
-                  <span className="text-blue-400">{entry.command.startsWith('Hunt started!') ? '~' : gameState.tree?.player_location || '~'}</span>
-                  <span className="text-gray-400 ml-1">$</span>
-                  <span className={`ml-2 ${entry.command.startsWith('Hunt started!') ? 'text-yellow-400' : 'text-gray-300'}`}>
-                    {entry.command.startsWith('Hunt started!') ? '' : entry.command}
-                  </span>
-                </div>
-                {entry.output && (
-                  <div className={`${entry.success ? 'text-gray-300' : 'text-red-400'} ml-0 mt-1 font-terminal whitespace-pre-wrap`}>
-                    {entry.output.split('\n').map((line, i) => {
-                      // Special coloring for mole detection messages
-                      let lineClass = '';
-                      if (line.includes('New mole detected')) {
-                        lineClass = 'text-yellow-400';
-                      } else if (line.includes('⚠️')) {
-                        // Timer warnings
-                        if (line.includes('CRITICAL')) {
-                          lineClass = 'text-red-500';
-                        } else if (line.includes('ALERT')) {
-                          lineClass = 'text-orange-400';
-                        } else if (line.includes('WARNING')) {
-                          lineClass = 'text-yellow-400';
-                        }
-                      }
-                      
-                      return (
-                        <div key={i} className={lineClass || ''}>
-                          {line}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ))}
-            
-            {/* Current input line */}
-            <div className="flex items-start font-terminal">
-              <span className="text-green-400">groundskeeper@molehill</span>
-              <span className="text-gray-400 mx-1">::</span>
-              <span className="text-blue-400">{gameState.tree?.player_location || '~'}</span>
-              <span className="text-gray-400 ml-1">$</span>
-              <div className="flex-1 ml-2">
-                <div className="relative inline-block">
-                  <span className="text-gray-300 font-terminal">{command}</span>
-                  <span 
-                    className="text-gray-300 font-terminal"
-                    style={{ 
-                      animation: 'blink 1s step-end infinite'
-                    }}
-                  >
-                    _
-                  </span>
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={command}
-                    onChange={(e) => setCommand(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        executeCommand(command);
-                      }
-                    }}
-                    disabled={executing}
-                    className="absolute inset-0 w-full bg-transparent text-transparent outline-none caret-transparent font-terminal"
-                    placeholder=""
-                    autoFocus
-                    spellCheck={false}
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Hints Popup */}
-      {showHints && hints.length > 0 && (
-        <div className="absolute top-16 left-4 bg-yellow-900/95 backdrop-blur-sm border border-yellow-600 rounded-lg p-4 max-w-md z-40 shadow-2xl">
-          <button
-            onClick={() => setShowHints(false)}
-            className="absolute top-2 right-2 text-yellow-400 hover:text-yellow-300"
-          >
-            ✕
-          </button>
-          <h3 className="text-yellow-400 font-bold mb-2">Hints:</h3>
-          {hints.map((hint, index) => (
-            <p key={index} className="text-yellow-200 text-sm">{hint}</p>
-          ))}
-        </div>
-      )}
-
-      {/* FHS Reference Modal */}
-      {showFHS && (
-        <div className="absolute top-16 left-4 bg-green-900/95 backdrop-blur-sm border border-green-600 rounded-lg p-6 max-w-2xl z-40 shadow-2xl">
-          <button
-            onClick={() => setShowFHS(false)}
-            className="absolute top-3 right-3 text-green-400 hover:text-green-300"
-          >
-            ✕
-          </button>
-          <h3 className="text-green-400 font-bold mb-4 text-lg">Filesystem Hierarchy Standard (FHS)</h3>
-          <div className="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto">
-            {fhsDirs.map((dir, index) => (
-              <div key={index} className="flex items-start gap-3">
-                <code className="text-green-300 font-terminal text-sm font-bold min-w-[80px]">{dir.path}</code>
-                <span className="text-green-200 text-sm">{dir.desc}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Command Reference Modal */}
-      {showCommands && commandRef && (
-        <div className="absolute top-16 left-4 bg-red-900/95 backdrop-blur-sm border border-red-600 rounded-lg p-6 max-w-2xl max-h-[80vh] overflow-y-auto z-40 shadow-2xl">
-          <button
-            onClick={() => setShowCommands(false)}
-            className="absolute top-3 right-3 text-red-400 hover:text-red-300"
-          >
-            ✕
-          </button>
-          <h3 className="text-red-400 font-bold mb-4 text-lg">Command Reference</h3>
-          
-          <div className="space-y-6">
-            {/* Navigation Commands */}
-            <div>
-              <h4 className="text-red-300 font-semibold mb-3">Navigation Commands</h4>
-              <div className="space-y-3">
-                {commandRef.navigation.map((cmd, index) => (
-                  <div key={index} className="border-l-2 border-red-700 pl-3">
-                    <div className="flex items-start gap-3">
-                      <code className="text-red-200 font-terminal text-sm">{cmd.command}</code>
-                      <span className="text-red-100 text-sm">- {cmd.description}</span>
-                    </div>
-                    {cmd.examples && (
-                      <div className="mt-1">
-                        <span className="text-red-300 text-xs">Examples: </span>
-                        <code className="text-red-200 text-xs">{cmd.examples.join(', ')}</code>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Exploration Commands */}
-            <div>
-              <h4 className="text-red-300 font-semibold mb-3">Exploration Commands</h4>
-              <div className="space-y-3">
-                {commandRef.exploration.map((cmd, index) => (
-                  <div key={index} className="border-l-2 border-red-700 pl-3">
-                    <div className="flex items-start gap-3">
-                      <code className="text-red-200 font-terminal text-sm">{cmd.command}</code>
-                      <span className="text-red-100 text-sm">- {cmd.description}</span>
-                    </div>
-                    {cmd.options && (
-                      <div className="mt-1 ml-4">
-                        {Object.entries(cmd.options).map(([opt, desc]) => (
-                          <div key={opt} className="text-xs">
-                            <code className="text-red-300">{opt}</code>
-                            <span className="text-red-200 ml-2">{desc}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Utility Commands */}
-            <div>
-              <h4 className="text-red-300 font-semibold mb-3">Utility Commands</h4>
-              <div className="space-y-3">
-                {commandRef.utility.map((cmd, index) => (
-                  <div key={index} className="border-l-2 border-red-700 pl-3">
-                    <div className="flex items-start gap-3">
-                      <code className="text-red-200 font-terminal text-sm">{cmd.command}</code>
-                      <span className="text-red-100 text-sm">- {cmd.description}</span>
-                    </div>
-                    {cmd.variables && (
-                      <div className="mt-1 ml-4">
-                        {Object.entries(cmd.variables).map(([variable, desc]) => (
-                          <div key={variable} className="text-xs">
-                            <code className="text-red-300">{variable}</code>
-                            <span className="text-red-200 ml-2">{desc}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Game Commands */}
-            <div>
-              <h4 className="text-red-300 font-semibold mb-3">Game Commands</h4>
-              <div className="space-y-3">
-                {commandRef.game.map((cmd, index) => (
-                  <div key={index} className="border-l-2 border-red-700 pl-3">
-                    <div className="flex items-start gap-3">
-                      <code className="text-red-200 font-terminal text-sm">{cmd.command}</code>
-                      <span className="text-red-100 text-sm">- {cmd.description}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Special Paths */}
-            <div>
-              <h4 className="text-red-300 font-semibold mb-3">Special Paths</h4>
-              <div className="space-y-3">
-                {commandRef.special_paths.map((path, index) => (
-                  <div key={index} className="border-l-2 border-red-700 pl-3">
-                    <div className="flex items-start gap-3">
-                      <code className="text-red-200 font-terminal text-sm">{path.path}</code>
-                      <span className="text-red-100 text-sm">- {path.description}</span>
-                    </div>
-                    <div className="mt-1">
-                      <span className="text-red-300 text-xs">Examples: </span>
-                      <code className="text-red-200 text-xs">{path.examples.join(', ')}</code>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Help Modals */}
+      <HelpModals
+        showHints={showHints}
+        setShowHints={setShowHints}
+        hints={hints}
+        showFHS={showFHS}
+        setShowFHS={setShowFHS}
+        fhsDirs={fhsDirs}
+        showCommands={showCommands}
+        setShowCommands={setShowCommands}
+        commandRef={commandRef}
+      />
 
       {/* Bottom Game Bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-slate-800/90 backdrop-blur-sm border-t border-slate-700 p-3 z-20">
@@ -819,18 +480,6 @@ const Game: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Custom styles for animations */}
-      <style jsx>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: scale(0.8); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 0.9; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.05); }
-        }
-      `}</style>
     </div>
   );
 };
