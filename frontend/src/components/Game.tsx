@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import TreeVisualizer from './TreeVisualizer';
 import Terminal from './Terminal';
 import HelpModals from './HelpModals';
 import GameStatus from './GameStatus';
-import { gameApi, CommandResponse } from '@/lib/api';
+import GameOverModal from './GameOverModal';
+import { gameApi, CommandResponse, GameStats } from '@/lib/api';
 
 // Import our custom hooks
 import { useGameState } from '@/hooks/useGameState';
@@ -44,6 +45,10 @@ const Game: React.FC = () => {
   const helpModals = useHelpModals(gameState.tree?.id || null);
 
   const { updateTreeDataToShowMole, removeMoleFromTree } = useTreeUtils();
+
+  // Game over modal state
+  const [showGameOver, setShowGameOver] = useState(false);
+  const [finalStats, setFinalStats] = useState<GameStats | null>(null);
 
   // Handle mole kill animation and updates
   const handleMoleKilled = useCallback((response: CommandResponse) => {
@@ -92,7 +97,11 @@ const Game: React.FC = () => {
     gameState.sessionId,
     updatePlayerLocation,
     handleMoleKilled,
-    updateTreeData
+    updateTreeData,
+    (stats) => {  // Add this callback for game completion
+      setFinalStats(stats);
+      setShowGameOver(true);
+    }
   );
 
   // Wrap executeCommand to clear the command input
@@ -184,6 +193,13 @@ const Game: React.FC = () => {
   const handleNodeClick = useCallback((path: string) => {
     executeCommand(`cd ${path}`);
   }, [executeCommand]);
+
+  // Handler for starting a new game from the modal
+  const handleNewGameFromModal = () => {
+    setShowGameOver(false);
+    setFinalStats(null);
+    initializeGame();
+  };
 
   // Start game on mount
   useEffect(() => {
@@ -289,6 +305,15 @@ const Game: React.FC = () => {
 
       {/* Help Modals */}
       <HelpModals {...helpModals} />
+
+      {/* Game Over Modal */}
+      <GameOverModal
+        isOpen={showGameOver}
+        gameStats={finalStats}
+        sessionId={gameState.sessionId}
+        onClose={() => setShowGameOver(false)}
+        onNewGame={handleNewGameFromModal}
+      />
 
       {/* Bottom Game Bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-slate-800/90 backdrop-blur-sm border-t border-slate-700 p-3 z-20">
