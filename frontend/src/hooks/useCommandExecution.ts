@@ -72,7 +72,7 @@ export const useCommandExecution = (
               children: node.children.map(child => updateMoleInTree(child, molePath))
             };
           };
-          return updateMoleInTree(tree, response.new_mole_location);
+          return updateMoleInTree(tree, response.new_mole_location!);
         });
       }
     } catch (error) {
