@@ -52,18 +52,13 @@ export const useCommandExecution = (
         onLocationChange(response.current_path);
       }
 
-      // Handle mole killed
+      // IMPORTANT: Handle mole killed BEFORE updating tree
+      // This ensures the animation plays at the correct location
       if (response.mole_spawned) {
         onMoleKilled(response);
-      }
-
-      // Handle game completion
-      if (response.game_completed && response.final_stats && onGameComplete) {
-        onGameComplete(response.final_stats);
-      }
-
-      // Handle mole location updates in tree
-      if (response.new_mole_location) {
+        // Don't update tree here - let onMoleKilled handle it after animation
+      } else if (response.new_mole_location) {
+        // Only update tree if it's NOT a mole kill (e.g., mole escape)
         onTreeUpdate((tree) => {
           const updateMoleInTree = (node: TreeNode, molePath: string): TreeNode => {
             return {
@@ -74,6 +69,11 @@ export const useCommandExecution = (
           };
           return updateMoleInTree(tree, response.new_mole_location!);
         });
+      }
+
+      // Handle game completion
+      if (response.game_completed && response.final_stats && onGameComplete) {
+        onGameComplete(response.final_stats);
       }
     } catch (error) {
       console.error('Command execution failed:', error);
