@@ -13,7 +13,6 @@ const GameOverModal: React.FC<GameOverModalProps> = ({
   isOpen,
   gameStats,
   sessionId,
-  onClose,
   onNewGame,
 }) => {
   const [playerName, setPlayerName] = useState('');
