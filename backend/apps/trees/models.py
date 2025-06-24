@@ -45,6 +45,15 @@ class FileSystemTree(models.Model):
     def __str__(self):
         return f"{self.name} - {'Completed' if self.is_completed else 'Active'}"
     
+    def complete_game(self):
+        """Mark the game as completed and record completion time"""
+        if not self.is_completed:
+            self.is_completed = True
+            self.completed_at = timezone.now()
+            self.save()
+            return True
+        return False
+    
     def generate_tree(self, max_depth=5, directories_per_level=3):
         """Generate a procedural Unix filesystem tree"""
         if self.seed == 0:
@@ -483,9 +492,10 @@ class FileSystemTree(models.Model):
     
     def resolve_path(self, path):
         """Resolve a path that may contain ~ or be relative"""
+        # Strip trailing slashes first (except for root)
         if path.endswith('/') and path != '/':
             path = path.rstrip('/')
-
+        
         if path == "~":
             return self.home_directory
         elif path.startswith("~/"):
@@ -504,9 +514,10 @@ class FileSystemTree(models.Model):
     
     def normalize_path(self, path):
         """Normalize a path by resolving .. and . components"""
+        # Strip trailing slashes first (except for root)
         if path.endswith('/') and path != '/':
             path = path.rstrip('/')
-            
+        
         parts = path.split('/')
         resolved = []
         
