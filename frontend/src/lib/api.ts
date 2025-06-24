@@ -39,6 +39,20 @@ export interface MoleDirection {
   angle: number;
 }
 
+export interface TimerWarning {
+  level: string;
+  message: string;
+}
+
+export interface GameStats {
+  score: number;
+  moles_killed: number;
+  moles_escaped: number;
+  commands_used: number;
+  time_taken: string;
+  directories_visited: number;
+}
+
 export interface CommandResponse {
   command: string;
   success: boolean;
@@ -50,6 +64,14 @@ export interface CommandResponse {
   score?: number;
   moles_killed?: number;
   new_mole_location?: string;
+  timer_remaining?: number;
+  timer_warnings?: TimerWarning[];
+  new_timer?: number;
+  timer_reason?: string;
+  timer_distance?: number;
+  game_completed?: boolean;
+  session_completed?: boolean;
+  final_stats?: GameStats;
 }
 
 export interface GameCreationResponse {
@@ -57,6 +79,9 @@ export interface GameCreationResponse {
   session_id: number;
   mole_hint: string;
   home_directory: string;
+  initial_timer?: number;
+  timer_reason?: string;
+  timer_distance?: number;
 }
 
 export interface HintResponse {
@@ -95,29 +120,6 @@ export interface CommandReferenceResponse {
   special_paths: SpecialPath[];
 }
 
-export interface TimerWarning {
-  level: string;
-  message: string;
-}
-
-export interface CommandResponse {
-  command: string;
-  success: boolean;
-  output: string;
-  current_path: string;
-  game_won?: boolean;
-  mole_spawned?: boolean;
-  mole_direction?: MoleDirection | null;
-  score?: number;
-  moles_killed?: number;
-  new_mole_location?: string;
-  timer_remaining?: number;
-  timer_warnings?: TimerWarning[];
-  new_timer?: number;
-  timer_reason?: string;
-  timer_distance?: number;
-}
-
 export interface TimerStatusResponse {
   remaining: number;
   total: number;
@@ -148,14 +150,27 @@ export interface CheckTimerResponse {
   message?: string;
 }
 
-export interface GameCreationResponse {
-  tree: FileSystemTree;
-  session_id: number;
-  mole_hint: string;
-  home_directory: string;
-  initial_timer?: number;
-  timer_reason?: string;
-  timer_distance?: number;
+export interface LeaderboardEntry {
+  rank: number;
+  player_name: string;
+  score: number;
+  moles_killed: number;
+  moles_escaped: number;
+  commands_used: number;
+  time_taken: string;
+  completed_at: string;
+}
+
+export interface LeaderboardResponse {
+  leaderboard: LeaderboardEntry[];
+  total_games: number;
+}
+
+export interface SavePlayerNameResponse {
+  success: boolean;
+  player_name: string;
+  score: number;
+  leaderboard_position: number;
 }
 
 export const gameApi = {
@@ -200,7 +215,7 @@ export const gameApi = {
     return response.data;
   },
 
-    getTimerStatus: async (treeId: number): Promise<TimerStatusResponse> => {
+  getTimerStatus: async (treeId: number): Promise<TimerStatusResponse> => {
     const response = await api.get(`/trees/filesystem-trees/${treeId}/timer_status/`);
     return response.data;
   },
@@ -209,6 +224,19 @@ export const gameApi = {
     const url = `/trees/filesystem-trees/${treeId}/check_timer/`;
     const params = sessionId ? `?session_id=${sessionId}` : '';
     const response = await api.get(url + params);
+    return response.data;
+  },
+  
+  savePlayerName: async (sessionId: number, playerName: string): Promise<SavePlayerNameResponse> => {
+    const response = await api.post('/trees/game-sessions/save_player_name/', {
+      session_id: sessionId,
+      player_name: playerName,
+    });
+    return response.data;
+  },
+
+  getLeaderboard: async (): Promise<LeaderboardResponse> => {
+    const response = await api.get('/trees/game-sessions/leaderboard/');
     return response.data;
   },
 };

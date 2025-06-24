@@ -1,5 +1,6 @@
 # apps/trees/views.py
 from django.http import HttpResponse
+from django.db import models
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -99,6 +100,11 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                     "command": "score",
                     "description": "Show current score and moles killed",
                     "examples": ["score"]
+                },
+                {
+                    "command": "exit",
+                    "description": "End the game and save your score",
+                    "examples": ["exit"]
                 }
             ],
             "special_paths": [
@@ -239,7 +245,7 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                 response_data.update({
                     'mole_escaped': True,
                     'escape_data': escape_data,
-                    'mole_direction': mole_direction,  # Add this line
+                    'mole_direction': mole_direction,
                     'message': f"The mole escaped from {escape_data['old_location']}! A new mole appeared!"
                 })
 
@@ -252,12 +258,6 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                         session.save()
                     except GameSession.DoesNotExist:
                         pass
-                
-                response_data.update({
-                    'mole_escaped': True,
-                    'escape_data': escape_data,
-                    'message': f"The mole escaped from {escape_data['old_location']}! A new mole appeared!"
-                })
         
         return Response(response_data)
     
@@ -632,6 +632,34 @@ class FileSystemTreeViewSet(viewsets.ModelViewSet):
                 response_data['output'] = "No active session to score."
             response_data['success'] = True
         
+        elif cmd == 'exit':
+            # Complete the game
+            tree.complete_game()
+            
+            # Complete the session if it exists
+            if session:
+                session.completed_at = timezone.now()
+                session.time_taken = session.completed_at - session.started_at
+                session.save()
+                
+                response_data['output'] = f"Game Over! Final score: {session.calculate_score()} | Moles killed: {session.moles_killed}"
+                response_data['score'] = session.calculate_score()
+                response_data['game_completed'] = True
+                response_data['session_completed'] = True
+                response_data['final_stats'] = {
+                    'score': session.calculate_score(),
+                    'moles_killed': session.moles_killed,
+                    'moles_escaped': session.moles_escaped,
+                    'commands_used': session.commands_used,
+                    'time_taken': str(session.time_taken),
+                    'directories_visited': session.directories_visited
+                }
+            else:
+                response_data['output'] = "Game ended. No session to record."
+                response_data['game_completed'] = True
+            
+            response_data['success'] = True
+        
         elif cmd == 'help':
             response_data['output'] = """Available commands:
 cd <directory>    - Change directory (supports ~, -, and ..)
@@ -645,6 +673,7 @@ echo <text>       - Display text (supports $HOME, $PWD, $OLDPWD)
 tree [-L depth]   - Display directory tree (use -L to limit depth)
 killall moles     - Eliminate moles (when in the same directory)
 score             - Show current score and moles killed
+exit              - End the game and save your score
 help              - Show this help message
 
 Special paths:
@@ -715,12 +744,75 @@ class GameSessionViewSet(viewsets.ModelViewSet):
     queryset = GameSession.objects.all()
     serializer_class = GameSessionSerializer
     
+    @action(detail=False, methods=['post'])
+    def save_player_name(self, request):
+        """Save player name for a completed session"""
+        session_id = request.data.get('session_id')
+        player_name = request.data.get('player_name', 'Anonymous')
+        
+        if not session_id:
+            return Response(
+                {'error': 'No session ID provided'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            session = GameSession.objects.get(id=session_id)
+            session.player_name = player_name
+            session.save()
+            
+            # Get leaderboard position
+            better_scores = GameSession.objects.filter(
+                completed_at__isnull=False
+            ).exclude(id=session_id).annotate(
+                score=models.F('moles_killed') * 1000  # Simplified score calculation
+            ).filter(score__gt=session.calculate_score()).count()
+            
+            return Response({
+                'success': True,
+                'player_name': player_name,
+                'score': session.calculate_score(),
+                'leaderboard_position': better_scores + 1
+            })
+        except GameSession.DoesNotExist:
+            return Response(
+                {'error': 'Session not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
     @action(detail=False, methods=['get'])
     def leaderboard(self, request):
-        """Get the leaderboard of fastest completions"""
+        """Get the leaderboard of top scores"""
+        # Get top 10 completed sessions
         completed_sessions = GameSession.objects.filter(
             completed_at__isnull=False
-        ).order_by('time_taken', 'commands_used')[:20]
+        )[:20]  # Get more than 10 to handle sorting by score
         
-        serializer = self.get_serializer(completed_sessions, many=True)
-        return Response(serializer.data)
+        leaderboard_data = []
+        for session in completed_sessions:
+            score = session.calculate_score()
+            leaderboard_data.append({
+                'rank': 0,  # Will be set after sorting
+                'player_name': session.player_name,
+                'score': score,
+                'moles_killed': session.moles_killed,
+                'moles_escaped': session.moles_escaped,
+                'commands_used': session.commands_used,
+                'time_taken': str(session.time_taken) if session.time_taken else 'N/A',
+                'completed_at': session.completed_at
+            })
+        
+        # Sort by score (highest first)
+        leaderboard_data.sort(key=lambda x: x['score'], reverse=True)
+        
+        # Keep only top 10
+        leaderboard_data = leaderboard_data[:10]
+        
+        # Update ranks after sorting
+        for i, entry in enumerate(leaderboard_data, 1):
+            entry['rank'] = i
+        
+        return Response({
+            'leaderboard': leaderboard_data,
+            'total_games': GameSession.objects.filter(completed_at__isnull=False).count()
+        })

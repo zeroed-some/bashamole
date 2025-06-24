@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import TreeVisualizer from './TreeVisualizer';
 import Terminal from './Terminal';
 import HelpModals from './HelpModals';
 import GameStatus from './GameStatus';
-import { gameApi, CommandResponse } from '@/lib/api';
+import GameOverModal from './GameOverModal';
+import { gameApi, CommandResponse, GameStats } from '@/lib/api';
 
 // Import our custom hooks
 import { useGameState } from '@/hooks/useGameState';
@@ -45,36 +46,42 @@ const Game: React.FC = () => {
 
   const { updateTreeDataToShowMole, removeMoleFromTree } = useTreeUtils();
 
+  // Game over modal state
+  const [showGameOver, setShowGameOver] = useState(false);
+  const [finalStats, setFinalStats] = useState<GameStats | null>(null);
+
   // Handle mole kill animation and updates
   const handleMoleKilled = useCallback((response: CommandResponse) => {
     if (!gameState.tree) return;
 
-    // First, show the killed mole briefly
-    updateTreeData((tree) => 
+    // First, show the killed mole at the player's current location (where it was killed)
+    updateTreeData((tree) =>
       updateTreeDataToShowMole(tree, gameState.tree!.player_location)
     );
-    
-    // Trigger falling animation
+
+    // Trigger falling animation on the current mole
     setMoleKilled(true);
-    
-    // After animation, update tree with new mole location
+
+    // After animation completes, remove old mole and show new mole
     setTimeout(() => {
       setMoleKilled(false);
-      
-      // Update tree to show new mole location
+
+      // Now update tree to remove old mole and show new mole location
       if (response.new_mole_location) {
         updateTreeData((tree) => {
+          // First remove all moles from the tree
           const cleanTree = removeMoleFromTree(tree);
+          // Then add the new mole at its new location
           return updateTreeDataToShowMole(cleanTree, response.new_mole_location!);
         });
       }
-      
+
       // Set new mole direction
       if (response.mole_direction) {
         setMoleDirection(response.mole_direction);
       }
-    }, 1500); // Wait for falling animation
-    
+    }, 1500); // Wait for falling animation to complete
+
     // Update score and moles killed
     if (response.score !== undefined && response.moles_killed !== undefined) {
       updateScore(response.score, response.moles_killed);
@@ -92,7 +99,11 @@ const Game: React.FC = () => {
     gameState.sessionId,
     updatePlayerLocation,
     handleMoleKilled,
-    updateTreeData
+    updateTreeData,
+    (stats) => {  // Add this callback for game completion
+      setFinalStats(stats);
+      setShowGameOver(true);
+    }
   );
 
   // Wrap executeCommand to clear the command input
@@ -113,7 +124,7 @@ const Game: React.FC = () => {
     const startLocation = response.tree.player_location;
     const homeDir = response.home_directory || '/home';
     let locationContext = '';
-    
+
     if (startLocation.startsWith('/home')) {
       locationContext = "You've been dropped in someone's home directory. ";
     } else if (startLocation.startsWith('/usr')) {
@@ -125,13 +136,13 @@ const Game: React.FC = () => {
     } else {
       locationContext = "You've been placed somewhere in the filesystem. ";
     }
-    
+
     // Add timer info to starting message
     let timerInfo = '';
     if (response.initial_timer && response.timer_reason) {
       timerInfo = `\nTimer: ${response.initial_timer}s (mole is ${response.timer_reason})`;
     }
-    
+
     addToHistory({
       command: 'Hunt started!',
       output: `${response.mole_hint}\n${locationContext}Your home directory is ${homeDir}.\nUse 'pwd' to see where you are, 'cd ~' to go home.${timerInfo}\nType "help" for available commands.`,
@@ -148,19 +159,19 @@ const Game: React.FC = () => {
       if (response.mole_escaped) {
         // Build the escape message
         let escapeMessage = response.message || 'The mole escaped!';
-        
+
         // Add distance info for new mole if available
         if (response.escape_data?.timer_reason) {
           escapeMessage += `\nNew mole detected ${response.escape_data.timer_reason}!`;
         }
-        
+
         // Update command history with escape message
         addToHistory({
           command: 'Mole escaped!',
           output: escapeMessage,
           success: false,
         });
-        
+
         // Update mole direction if provided
         if (response.escape_data?.new_location) {
           // Update tree to show new mole location
@@ -168,7 +179,7 @@ const Game: React.FC = () => {
             const cleanTree = removeMoleFromTree(tree);
             return updateTreeDataToShowMole(cleanTree, response.escape_data!.new_location);
           });
-          
+
           // Show mole direction indicator if provided
           if (response.escape_data?.mole_direction) {
             setMoleDirection(response.escape_data.mole_direction);
@@ -184,6 +195,13 @@ const Game: React.FC = () => {
   const handleNodeClick = useCallback((path: string) => {
     executeCommand(`cd ${path}`);
   }, [executeCommand]);
+
+  // Handler for starting a new game from the modal
+  const handleNewGameFromModal = () => {
+    setShowGameOver(false);
+    setFinalStats(null);
+    initializeGame();
+  };
 
   // Start game on mount
   useEffect(() => {
@@ -290,6 +308,15 @@ const Game: React.FC = () => {
       {/* Help Modals */}
       <HelpModals {...helpModals} />
 
+      {/* Game Over Modal */}
+      <GameOverModal
+        isOpen={showGameOver}
+        gameStats={finalStats}
+        sessionId={gameState.sessionId}
+        onClose={() => setShowGameOver(false)}
+        onNewGame={handleNewGameFromModal}
+      />
+
       {/* Bottom Game Bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-slate-800/90 backdrop-blur-sm border-t border-slate-700 p-3 z-20">
         <div className="max-w-7xl mx-auto flex justify-between items-center px-4">
@@ -299,7 +326,7 @@ const Game: React.FC = () => {
               amole
             </h1>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <div className="text-xs text-slate-400">
               click adjacent nodes or use the terminal
